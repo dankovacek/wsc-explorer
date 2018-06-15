@@ -94,4 +94,4 @@ curdoc().add_root(
         )
     )
 )
-curdoc().title = "Dashboard Demo"
+curdoc().title = "WSC Explorer: A DKHydrotech Application"

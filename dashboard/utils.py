@@ -13,6 +13,7 @@
 import os
 import socket
 from datetime import datetime
+from get_station_data import get_daily_UR
 
 import pandas as pd
 from pymemcache.client.hash import HashClient
@@ -54,7 +55,8 @@ class MemcachedDiscovery:
     def get_client(self):
         # Check if we are due for a resync of Memcached nodes
         now = datetime.now()
-        due_for_resync = self._t0 is None or (now - self._t0).total_seconds() > self.resync_interval
+        due_for_resync = self._t0 is None or (
+            now - self._t0).total_seconds() > self.resync_interval
         if due_for_resync:
             # Request a resync
             self._resync()
@@ -63,26 +65,22 @@ class MemcachedDiscovery:
         return self._client
 
 
-def _run(query, dialect='legacy'):
-    return pd.io.gbq.read_gbq(
-        query,
-        project_id=os.environ['GOOGLE_PROJECT_ID'],
-        private_key=os.environ['GOOGLE_APPLICATION_CREDENTIALS'],
-        dialect=dialect
-    )
+def _run(query):
+    return get_daily_UR(query)
 
 
-def run_query(query, cache_key, expire=3600, dialect='legacy'):
+def run_query(query, cache_key, expire=3600):
     memcached_client = memcached_discovery.get_client()
     if memcached_client is None:
-        return _run(query, dialect=dialect)
+        return _run(query)
     else:
         json = memcached_client.get(cache_key)
         if json is not None:
             df = pd.read_json(json, orient='records')
         else:
-            df = _run(query, dialect=dialect)
-            memcached_client.set(cache_key, df.to_json(orient='records'), expire=expire)
+            df = _run(query)
+            memcached_client.set(cache_key, df.to_json(
+                orient='records'), expire=expire)
         return df
 
 

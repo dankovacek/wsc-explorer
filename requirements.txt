@@ -1,0 +1,10 @@
+bokeh==0.12.16
+Jinja2==2.10
+MarkupSafe==1.0
+numpy==1.14.5
+packaging==17.1
+pyparsing==2.2.0
+python-dateutil==2.7.3
+PyYAML==3.12
+six==1.11.0
+tornado==5.0.2

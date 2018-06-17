@@ -17,45 +17,12 @@ from bokeh.layouts import column
 
 from modules.base import BaseModule
 from utils import run_query
-from states import NAMES_TO_CODES
+from stations import IDS_TO_NAMES
+import pandas as pd
 
 
-QUERY = """
-    SELECT
-      pm10.year AS year,
-      pm10.avg AS pm10,
-      pm25_frm.avg AS pm25_frm,
-      pm25_nonfrm.avg AS pm25_nonfrm,
-      lead.avg AS lead
-    FROM
-      ( SELECT avg(arithmetic_mean) as avg, YEAR(date_local) as year
-        FROM [bigquery-public-data:epa_historical_air_quality.pm10_daily_summary]
-        WHERE state_name = '%(state)s'
-        GROUP BY year
-      ) AS pm10
-    JOIN
-      ( SELECT avg(arithmetic_mean) as avg, YEAR(date_local) as year
-        FROM [bigquery-public-data:epa_historical_air_quality.pm25_frm_daily_summary]
-        WHERE state_name = '%(state)s'
-        GROUP BY year
-      ) AS pm25_frm ON pm10.year = pm25_frm.year
-    JOIN
-      ( SELECT avg(arithmetic_mean) as avg, YEAR(date_local) as year
-        FROM [bigquery-public-data:epa_historical_air_quality.pm25_nonfrm_daily_summary]
-        WHERE state_name = '%(state)s'
-        GROUP BY year
-      ) AS pm25_nonfrm ON pm10.year = pm25_nonfrm.year
-    JOIN
-      ( SELECT avg(arithmetic_mean) * 100 as avg, YEAR(date_local) as year
-        FROM [bigquery-public-data:epa_historical_air_quality.lead_daily_summary]
-        WHERE state_name = "%(state)s"
-        GROUP BY year
-      ) AS lead ON pm10.year = lead.year
-    ORDER BY
-      year
-"""
-
-TITLE = 'Evolution of air pollutant levels:'
+TITLE = 'Daily Flow Hydrograph:'
+TOOLS = "pan,wheel_zoom,box_select,lasso_select,reset,box_zoom"
 
 
 class Module(BaseModule):
@@ -66,31 +33,34 @@ class Module(BaseModule):
         self.plot = None
         self.title = None
 
-    def fetch_data(self, state):
+    def fetch_data(self, station):
         return run_query(
-            QUERY % {'state': state},
-            cache_key=('air-%s' % NAMES_TO_CODES[state]))
+            station,
+            cache_key=('hydrograph-%s' % station))
 
 # [START make_plot]
     def make_plot(self, dataframe):
+
+        dataframe['tooltip_date'] = [x.strftime(
+            "%Y-%m-%d") for x in dataframe.index]
         self.source = ColumnDataSource(data=dataframe)
         palette = all_palettes['Set2'][6]
+        UR_heading = [
+            e for e in dataframe.columns.values if 'DAILY_UR' in e][0]
         hover_tool = HoverTool(tooltips=[
-            ("Value", "$y"),
-            ("Year", "@year"),
+            ("Date", "@tooltip_date"),
+            ("Unit Runoff", "@{}".format(UR_heading)),
         ])
         self.plot = figure(
-            plot_width=600, plot_height=300, tools=[hover_tool],
-            toolbar_location=None)
+            plot_width=600, plot_height=300, tools=TOOLS,
+            toolbar_location=None, x_axis_type="datetime")
+        self.plot.add_tools(hover_tool)
         columns = {
-            'pm10': 'PM10 Mass (µg/m³)',
-            'pm25_frm': 'PM2.5 FRM (µg/m³)',
-            'pm25_nonfrm': 'PM2.5 non FRM (µg/m³)',
-            'lead': 'Lead (¹/₁₀₀ µg/m³)',
+            '{}'.format(UR_heading): 'Unit Runoff (L/s/km²)',
         }
         for i, (code, label) in enumerate(columns.items()):
             self.plot.line(
-                x='year', y=code, source=self.source, line_width=3,
+                x='DATE', y=code, source=self.source, line_width=3,
                 line_alpha=0.6, line_color=palette[i], legend=label)
 
         self.title = Paragraph(text=TITLE)

@@ -9,7 +9,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from bokeh.models import ColumnDataSource, HoverTool, Paragraph, GMapOptions
 from bokeh.plotting import figure, gmap
 from bokeh.palettes import all_palettes
@@ -36,7 +35,7 @@ class Module(BaseModule):
     def __init__(self):
         super().__init__()
         self.nearby_stations_source = ColumnDataSource(data=dict())
-        self.target_location_source = ColumnDataSource(data=dict())
+        self.target_station_source = ColumnDataSource(data=dict())
         self.plot = None
         self.title = None
 
@@ -50,8 +49,8 @@ class Module(BaseModule):
         # [START make_plot]
     def make_plot(self, data):
 
-        self.target_location_source.data = {'lat': [data['target_coords']['lat']],
-                                            'lng': [data['target_coords']['lng']]}
+        self.target_station_source.data = {'lat': [data['target_coords']['lat']],
+                                           'lng': [data['target_coords']['lng']]}
 
         print(data)
         self.nearby_stations_source.data = {'lat': [],
@@ -78,10 +77,12 @@ class Module(BaseModule):
                          map_options=map_options, width=700, height=450)
 
         self.plot.circle(x="lng", y="lat", size=15,
-                         fill_color="red", fill_alpha=0.8, source=self.target_location_source)
+                         fill_color="red", fill_alpha=0.8,
+                         source=self.target_station_source)
 
         self.plot.circle(x="lng", y="lat", size=15,
-                         fill_color="blue", fill_alpha=0.8, source=self.nearby_stations_source)
+                         fill_color="blue", fill_alpha=0.8,
+                         source=self.nearby_stations_source)
 
         self.plot.on_event(DoubleTap, self.map_callback)
 
@@ -91,11 +92,11 @@ class Module(BaseModule):
 
     def map_callback(self, event):
         x, y = convert_coords(event.x, event.y)
-        self.target_location_source.data = dict(lat=[y], lng=[x])
+        self.target_station_source.data = dict(lat=[y], lng=[x])
 
     def update_plot(self, dataframe):
-        self.target_location_source.update()
-        self.nearby_location_source.update()
+        self.target_station_source.update()
+        self.nearby_stations_source.update()
 
     def busy(self):
         self.title.text = 'Updating...'

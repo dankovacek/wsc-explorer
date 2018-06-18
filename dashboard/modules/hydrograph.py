@@ -15,6 +15,7 @@ from bokeh.palettes import all_palettes
 from bokeh.layouts import column
 
 from modules.base import BaseModule
+
 from utils import run_query
 from stations import IDS_TO_NAMES
 import pandas as pd

@@ -10,36 +10,36 @@
 # limitations under the License.
 
 
-import logging
 import concurrent
-import time
+import logging
 import os
-import pandas as pd
+import time
 
+import pandas as pd
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
-from bokeh.models import Select, Paragraph, GMapOptions, ColumnDataSource, MultiSelect
-from bokeh.models.widgets import TextInput, Div, PreText, Button
-from bokeh.plotting import gmap
+from bokeh.models import (ColumnDataSource, GMapOptions, MultiSelect,
+                          Paragraph, Select)
 from bokeh.models.formatters import DatetimeTickFormatter
+from bokeh.models.widgets import Button, Div, PreText, TextInput
+from bokeh.plotting import gmap
 
 import modules.hydrograph
-from modules import google_map
-
+import modules.stationmap
+# import modules.precipitation
 # import modules.temperature
 
-# import modules.precipitation
-from stations import IDS_TO_NAMES, NAMES_TO_IDS, IDS_AND_COORDS
 from get_station_data import get_stations_by_distance
+
+from stations import IDS_AND_COORDS, IDS_TO_NAMES, NAMES_TO_IDS
+
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Hide some noisy warnings
 logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 
-# , modules.temperature.Module(), modules.population.Module(), modules.precipitation.Module()]
-modules = [modules.hydrograph.Module(), modules.google_map.Module()]
-
+modules = [modules.hydrograph.Module(), modules.stationmap.Module()]
 # [START fetch_data]
 
 
@@ -85,25 +85,6 @@ def update(attrname, old, new):
         getattr(module, 'unbusy')()
 
 
-def station_input_callback(attrname, old, new):
-    '''
-    When station input is entered, get corresponding
-    lat/lng and send to update the neighbouring
-    station options.
-    '''
-    new_station = new.split(':')[0]
-    lat, lng = IDS_AND_COORDS[new_station]
-
-    station_input_widget.value = IDS_TO_NAMES[new_station]
-    selected_station_text.text = "Selected WSC Station: {}".format(
-        IDS_TO_NAMES[new_station])
-
-    lat_input.value = lat
-    lng_input.value = lng
-
-    update_station_options()
-
-
 def update_station_options():
     '''
     When the current project location changes,
@@ -112,7 +93,8 @@ def update_station_options():
     '''
     stations_within_search_distance = get_stations_by_distance(
         float(lat_input.value), float(lng_input.value),
-        int(search_distance_select.value)).sort_values(by='distance_to_target')  # [['Station Number']]
+        int(search_distance_select.value)).sort_values(by='distance_to_target')
+    # [['Station Number']]
 
     print(stations_within_search_distance.head())
 
@@ -120,6 +102,7 @@ def update_station_options():
                       for e in stations_within_search_distance['Station Number'].values]
     stations = {'stations': found_stations}
     station_options_source.data = stations
+    return
 
 
 def station_options_callback(attrname, old, new):
@@ -191,10 +174,11 @@ curdoc().add_root(
         row(main_title_div, timer),
         # row(selected_station_text),
         # row(timer),
-        row(blocks['modules.google_map'],
+        row(blocks['modules.stationmap'],
             column(lat_input, lng_input, search_distance_select, station_select)),
         row(blocks['modules.hydrograph'],
-            # column(blocks['modules.precipitation'], blocks['modules.population']),
+            # column(blocks['modules.precipitation'],
+            # blocks['modules.population']),
             )
     )
 )

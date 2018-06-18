@@ -13,23 +13,21 @@
 import logging
 import concurrent
 import time
-import json
 import os
 import pandas as pd
 
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.models import Select, Paragraph, GMapOptions, ColumnDataSource, MultiSelect
-from bokeh.models.widgets import AutocompleteInput, Div, PreText, Button
+from bokeh.models.widgets import TextInput, Div, PreText, Button
 from bokeh.plotting import gmap
-from bokeh.events import DoubleTap
 from bokeh.models.formatters import DatetimeTickFormatter
 
 import modules.hydrograph
-import modules.map
+from modules import google_map
 
 # import modules.temperature
-# import modules.population
+
 # import modules.precipitation
 from stations import IDS_TO_NAMES, NAMES_TO_IDS, IDS_AND_COORDS
 from get_station_data import get_stations_by_distance
@@ -40,7 +38,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 
 # , modules.temperature.Module(), modules.population.Module(), modules.precipitation.Module()]
-modules = [modules.hydrograph.Module(), modules.map.Module()]
+modules = [modules.hydrograph.Module(), modules.google_map.Module()]
 
 # [START fetch_data]
 
@@ -90,27 +88,33 @@ def update(attrname, old, new):
 def station_input_callback(attrname, old, new):
     '''
     When station input is entered, get corresponding
-    lat/lon and send to update the neighbouring
+    lat/lng and send to update the neighbouring
     station options.
     '''
     new_station = new.split(':')[0]
-    lat, lon = IDS_AND_COORDS[new_station]
+    lat, lng = IDS_AND_COORDS[new_station]
 
     station_input_widget.value = IDS_TO_NAMES[new_station]
     selected_station_text.text = "Selected WSC Station: {}".format(
         IDS_TO_NAMES[new_station])
 
-    update_station_options(lat, lon)
+    lat_input.value = lat
+    lng_input.value = lng
+
+    update_station_options()
 
 
-def update_station_options(lat, lon):
+def update_station_options():
     '''
     When the current project location changes,
     update the list of neighbouring stations
     within the specified search distance.
     '''
     stations_within_search_distance = get_stations_by_distance(
-        lat, lon, int(search_distance_select.value))[['Station Number']]
+        float(lat_input.value), float(lng_input.value),
+        int(search_distance_select.value)).sort_values(by='distance_to_target')  # [['Station Number']]
+
+    print(stations_within_search_distance.head())
 
     found_stations = [IDS_TO_NAMES[e]
                       for e in stations_within_search_distance['Station Number'].values]
@@ -118,36 +122,55 @@ def update_station_options(lat, lon):
     station_options_source.data = stations
 
 
-station_id = '08MG005'
+def station_options_callback(attrname, old, new):
+    update_station_options()
 
-current_lat, current_lon = IDS_AND_COORDS[station_id]
+
+def update_lat(attrname, old, new):
+    if new.isnumeric() and new > -90 and new < 90:
+        update_station_options()
+    else:
+        lat_input.value = "Enter a value between -90 and 90."
+
+
+def update_lng(attrname, old, new):
+    if new.isnumeric() and new > -180 and new < 180:
+        update_station_options()
+    else:
+        lng_input.value = "Enter a value between -180 and 180."
+
+# UI Start
+
 
 station_options_source = ColumnDataSource(
     data=dict(stations=[]))
 
-station_input_widget = AutocompleteInput(value="{}".format(IDS_TO_NAMES[station_id]),
-                                         completions=[IDS_TO_NAMES[e]
-                                                      for e in IDS_TO_NAMES.keys()],
-                                         title='Find Primary Station (use all-caps for autocomplete)',
-                                         width=600)
+station_id = '08MG005'
 
-station_input_widget.on_change('value', station_input_callback)
+current_lat, current_lng = IDS_AND_COORDS[station_id]
 
-search_distance_select = Select(title="Set Search Distance",
+lat_input = TextInput(title="Latitude (dec. degrees)",
+                      value=str(current_lat))
+
+lng_input = TextInput(title="Longitude (dec. degrees)",
+                      value=str(current_lng))
+
+lat_input.on_change('value', update_lat)
+lng_input.on_change('value', update_lng)
+
+search_distance_select = Select(title="Set Search Distance [km]",
                                 value='50', options=['50', '100', '150'])
 
 search_distance_select.on_change('value', update)
 
-station_comparison_options = update_station_options(current_lat, current_lon)
+station_comparison_options = update_station_options()
 
-station_select = MultiSelect(title='Select a station:',
+station_select = MultiSelect(title='Select WSC stations to compare:',
                              value=[station_id],
+                             size=10,
                              options=list(station_options_source.data['stations']))
 
-station_select.on_change('value', update)
-
-selected_station_text = PreText(
-    text="Target WSC Station: {}".format(IDS_TO_NAMES[station_id]), width=800)
+station_select.on_change('value', station_options_callback)
 
 timer = Paragraph()
 
@@ -165,14 +188,14 @@ main_title_div = Div(text="""
 
 curdoc().add_root(
     column(
-        row(main_title_div),
-        row(station_input_widget, search_distance_select),
-        row(selected_station_text),
-        row(station_select, timer),
-        row(
-            column(blocks['modules.map'], blocks['modules.hydrograph']),
+        row(main_title_div, timer),
+        # row(selected_station_text),
+        # row(timer),
+        row(blocks['modules.google_map'],
+            column(lat_input, lng_input, search_distance_select, station_select)),
+        row(blocks['modules.hydrograph'],
             # column(blocks['modules.precipitation'], blocks['modules.population']),
-        )
+            )
     )
 )
 curdoc().title = "WSC Explorer: A DKHydrotech Application"

@@ -166,11 +166,9 @@ def get_stations_by_distance(lat, lon, radius):
     target_stns['UTM_Zone'] = [str(e[-2]) + str(e[-1])
                                for e in target_stns['utm_latlon']]
 
-    results = []
-
     try:
         target_stns = target_stns[target_stns['UTM_Zone'] == target_zone]
     except TypeError as e:
-        return results
+        return []
 
     return target_stns

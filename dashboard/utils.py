@@ -14,6 +14,7 @@ import os
 import socket
 from datetime import datetime
 from get_station_data import get_daily_UR
+from pyproj import Proj, transform
 
 import pandas as pd
 from pymemcache.client.hash import HashClient
@@ -82,6 +83,13 @@ def run_query(query, cache_key, expire=3600):
             memcached_client.set(cache_key, df.to_json(
                 orient='records'), expire=expire)
         return df
+
+
+def convert_coords(x1, y1):
+    inProj = Proj(init='epsg:3857')
+    outProj = Proj(init='epsg:4326')
+    x2, y2 = transform(inProj, outProj, x1, y1)
+    return x2, y2
 
 
 memcached_discovery = MemcachedDiscovery()

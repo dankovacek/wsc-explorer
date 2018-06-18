@@ -9,7 +9,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from bokeh.models import ColumnDataSource, HoverTool, Paragraph
 from bokeh.plotting import figure
 from bokeh.palettes import all_palettes
@@ -21,7 +20,7 @@ from stations import IDS_TO_NAMES
 import pandas as pd
 
 
-TITLE = 'Daily Flow Hydrograph:'
+TITLE = 'Daily Flow Unit Hydrograph [L/s/km²]'
 TOOLS = "pan,wheel_zoom,box_select,lasso_select,reset,box_zoom"
 
 
@@ -47,16 +46,18 @@ class Module(BaseModule):
         palette = all_palettes['Set2'][6]
         UR_heading = [
             e for e in dataframe.columns.values if 'DAILY_UR' in e][0]
+        station_id = dataframe.columns.values[0].split('DAILY_UR_')[1]
+
         hover_tool = HoverTool(tooltips=[
             ("Date", "@tooltip_date"),
             ("Unit Runoff", "@{}".format(UR_heading)),
         ])
         self.plot = figure(
-            plot_width=600, plot_height=300, tools=TOOLS,
+            plot_width=1200, plot_height=400, tools=TOOLS,
             toolbar_location=None, x_axis_type="datetime")
         self.plot.add_tools(hover_tool)
         columns = {
-            '{}'.format(UR_heading): 'Unit Runoff (L/s/km²)',
+            '{}'.format(UR_heading): '{}'.format(station_id),
         }
         for i, (code, label) in enumerate(columns.items()):
             self.plot.line(

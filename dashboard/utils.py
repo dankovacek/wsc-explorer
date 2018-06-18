@@ -10,14 +10,16 @@
 # limitations under the License.
 
 
+import json
 import os
 import socket
 from datetime import datetime
-from get_station_data import get_daily_UR
-from pyproj import Proj, transform
 
 import pandas as pd
 from pymemcache.client.hash import HashClient
+from pyproj import Proj, transform
+
+from get_station_data import get_daily_UR
 
 
 class MemcachedDiscovery:
@@ -67,7 +69,10 @@ class MemcachedDiscovery:
 
 
 def _run(query):
-    return get_daily_UR(query)
+    df_dict = {}
+    for e in query:
+        df_dict[e] = get_daily_UR(e)
+    return df_dict
 
 
 def run_query(query, cache_key, expire=3600):
@@ -77,12 +82,11 @@ def run_query(query, cache_key, expire=3600):
     else:
         json = memcached_client.get(cache_key)
         if json is not None:
-            df = pd.read_json(json, orient='records')
+            df_dict = json.read(json, orient='records')
         else:
-            df = _run(query)
-            memcached_client.set(cache_key, df.to_json(
-                orient='records'), expire=expire)
-        return df
+            df_dict = _run(query)
+            memcached_client.set(cache_key, json.dumps(df_dict), expire=expire)
+        return df_dict
 
 
 def convert_coords(x1, y1):

@@ -57,6 +57,12 @@ def fetch_data(station):
         # Prepare the thread tasks
         tasks = {}
         for key, fetch_method in fetch_methods.items():
+            print('')
+            print('')
+            print('')
+            print(key, fetch_method)
+            print('')
+            print('')
             task = executor.submit(fetch_method, station)
             tasks[task] = key
         # Run the tasks and collect results as they arrive
@@ -71,12 +77,19 @@ def fetch_data(station):
 # [END fetch_data]
 
 
+def make_query_object():
+    return {'lat': lat_input.value,
+            'lng': lng_input.value,
+            'search_distance': search_distance_select.value,
+            'selected_stations': station_select.value}
+
+
 def update(attrname, old, new):
     timer.text = '(Executing %s queries...)' % len(modules)
     for module in modules:
         getattr(module, 'busy')()
 
-    results = fetch_data(NAMES_TO_IDS[new.split(':')[1].strip()])
+    results = fetch_data(make_query_object())
 
     for module in modules:
         getattr(module, 'update_plot')(results[module.id])
@@ -91,18 +104,9 @@ def update_station_options():
     update the list of neighbouring stations
     within the specified search distance.
     '''
-    stations_within_search_distance = get_stations_by_distance(
+    return get_stations_by_distance(
         float(lat_input.value), float(lng_input.value),
         int(search_distance_select.value)).sort_values(by='distance_to_target')
-    # [['Station Number']]
-
-    print(stations_within_search_distance.head())
-
-    found_stations = [IDS_TO_NAMES[e]
-                      for e in stations_within_search_distance['Station Number'].values]
-    stations = {'stations': found_stations}
-    station_options_source.data = stations
-    return
 
 
 def station_options_callback(attrname, old, new):
@@ -111,14 +115,14 @@ def station_options_callback(attrname, old, new):
 
 def update_lat(attrname, old, new):
     if new.isnumeric() and new > -90 and new < 90:
-        update_station_options()
+        update(attrname, old, new)
     else:
         lat_input.value = "Enter a value between -90 and 90."
 
 
 def update_lng(attrname, old, new):
     if new.isnumeric() and new > -180 and new < 180:
-        update_station_options()
+        update(attrname, old, new)
     else:
         lng_input.value = "Enter a value between -180 and 180."
 
@@ -128,9 +132,9 @@ def update_lng(attrname, old, new):
 station_options_source = ColumnDataSource(
     data=dict(stations=[]))
 
-station_id = '08MG005'
+initial_station_id = '08MG005'
 
-current_lat, current_lng = IDS_AND_COORDS[station_id]
+current_lat, current_lng = IDS_AND_COORDS[initial_station_id]
 
 lat_input = TextInput(title="Latitude (dec. degrees)",
                       value=str(current_lat))
@@ -149,7 +153,7 @@ search_distance_select.on_change('value', update)
 station_comparison_options = update_station_options()
 
 station_select = MultiSelect(title='Select WSC stations to compare:',
-                             value=[station_id],
+                             value=[IDS_TO_NAMES[initial_station_id]],
                              size=10,
                              options=list(station_options_source.data['stations']))
 
@@ -157,13 +161,13 @@ station_select.on_change('value', station_options_callback)
 
 timer = Paragraph()
 
-results = fetch_data(station_id)
+results = fetch_data(make_query_object())
 
 blocks = {}
 for module in modules:
     block = getattr(module, 'make_plot')(results[module.id])
     blocks[module.id] = block
-print('')
+
 main_title_div = Div(text="""
 <h2>WSC Data Historical Data Explorer</h2>
 """, width=800, height=30)

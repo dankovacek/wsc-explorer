@@ -58,4 +58,3 @@ NAMES_TO_IDS = {v: k for (k, v) in STATIONS}
 IDS_AND_DAS = {k: v for (k, v) in DRAINAGE_AREAS}
 IDS_AND_COORDS = {k: (lat, lon) for (k, lat, lon) in COORDS}
 STATIONS_DF = stations_df
-STATES = STATIONS_DF

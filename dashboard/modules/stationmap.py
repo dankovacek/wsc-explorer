@@ -39,10 +39,18 @@ class Module(BaseModule):
         self.plot = None
         self.title = None
 
-    def fetch_data(self, station):
-        lat, lng = IDS_AND_COORDS[station]
-        results = {'target_station': station,
-                   'target_coords': {'lat': lat, 'lng': lng}}
+    def fetch_data(self, input_vars):
+        lat = input_vars['lat']
+        lng = input_vars['lng']
+        stations = input_vars['selected_stations']
+        lats = []
+        lngs = []
+        for station in stations:
+            lats.append(IDS_AND_COORDS[station.split(':')[0].strip()][0])
+            lngs.append(IDS_AND_COORDS[station.split(':')[0].strip()][1])
+
+        results = {'target_stations': stations,
+                   'target_coords': {'lat': lats, 'lng': lngs}}
 
         return results
 
@@ -52,7 +60,6 @@ class Module(BaseModule):
         self.target_station_source.data = {'lat': [data['target_coords']['lat']],
                                            'lng': [data['target_coords']['lng']]}
 
-        print(data)
         self.nearby_stations_source.data = {'lat': [],
                                             'lng': []}
         palette = all_palettes['Set2'][6]

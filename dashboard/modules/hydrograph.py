@@ -33,10 +33,18 @@ class Module(BaseModule):
         self.plot = None
         self.title = None
 
-    def fetch_data(self, station):
+    def fetch_data(self, input_vars):
+        # create a tag based on lat-lng rounded to 0.1 such that the search doesn't
+        # get repeated uneccessarily for repeat clicks within roughly a 10km radius
+        lat_lng_tag = 'lat' + \
+            str(round(float(input_vars['lat']), 1)) + 'lng' + \
+            str(round(float(input_vars['lng']), 1))
+        print('lat lng tag:')
+        print(lat_lng_tag)
+        print('')
         return run_query(
-            station,
-            cache_key=('hydrograph-%s' % station))
+            input_vars['selected_stations'],
+            cache_key=('hydrograph-%s' % lat_lng_tag))
 
 # [START make_plot]
     def make_plot(self, dataframe):
@@ -70,6 +78,11 @@ class Module(BaseModule):
 # [END make_plot]
 
     def update_plot(self, dataframe):
+        print('')
+        print('')
+        print(dataframe.head())
+        print('')
+        print('')
         self.source.data.update(dataframe)
 
     def busy(self):

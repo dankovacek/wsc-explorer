@@ -13,13 +13,6 @@
 class BaseModule:
 
     def __init__(self):
-        print('')
-        print('')
-        print('')
-        print(self.__module__)
-        print('')
-        print('')
-        print('')
         self.id = self.__module__
 
     def fetch_data(self, state):

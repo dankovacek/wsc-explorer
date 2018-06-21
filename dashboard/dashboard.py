@@ -22,7 +22,7 @@ from bokeh.layouts import column, row
 from bokeh.models import (ColumnDataSource, GMapOptions, MultiSelect,
                           Paragraph, Select)
 from bokeh.models.formatters import DatetimeTickFormatter
-from bokeh.models.widgets import Button, Div, PreText, TextInput
+from bokeh.models.widgets import Div, Button, PreText, TextInput
 from bokeh.plotting import gmap
 
 import modules.hydrograph
@@ -85,8 +85,9 @@ def update_map(attrname, old, new):
 
     getattr(map_module, 'update_map')(results)
     getattr(map_module, 'update_nearby_stations')(results['nearby_stations'])
-    getattr(map_module, 'update_station_selection')(
-        results['nearby_stations']['stations'])
+
+    getattr(map_module, 'update_selected_stations')(
+        results['nearby_stations']['Station Number'].values)
 
     getattr(map_module, 'unbusy')()
 
@@ -95,8 +96,6 @@ def update_hydrograph(attrname, old, new):
     timer.text = '(Executing {} queries...)'.format('n')
     getattr(hydrograph_module, 'busy')()
 
-    print(new)
-
     results = fetch_flow_data(new)
     getattr(map_module, 'update_plot')(results)
     getattr(hydrograph_module, 'update_plot')(results)
@@ -104,32 +103,17 @@ def update_hydrograph(attrname, old, new):
     getattr(hydrograph_module, 'unbusy')()
 
 
-# def update_lat(attrname, old, new):
-#     if new.isnumeric() and new > -90 and new < 90:
-#         update(attrname, old, new)
-#     else:
-#         lat_input.value = "Enter a value between -90 and 90."
-
-
-# def update_lng(attrname, old, new):
-#     if new.isnumeric() and new > -180 and new < 180:
-#         update(attrname, old, new)
-#     else:
-#         lng_input.value = "Enter a value between -180 and 180."
-
+#############
 # UI Start
-
-
 # set initial location
 initial_location = ['08KC001']
 current_lat, current_lng = IDS_AND_COORDS[initial_location[0]]
-
 timer = Paragraph()
-
-# Get initial results based on hard-coded initial location
-
 blocks = {}
 
+#########
+# Initialization and Callbacks for plot interactions
+#########
 # set initial location
 # this sets the initial location source in the map module
 getattr(map_module, 'update_current_location')(current_lat, current_lng)
@@ -139,39 +123,49 @@ map_results = getattr(map_module, 'fetch_data')(
     float(getattr(map_module, 'search_distance_select').value))
 
 getattr(map_module, 'update_nearby_stations')(map_results['nearby_stations'])
-getattr(map_module, 'update_station_selection')(
-    map_results['nearby_stations']['stations'])
 blocks['modules.stationmap'] = getattr(map_module, 'make_plot')(map_results)
 
-# Callbacks for plot interactions
-
+##########
 # Map module callbacks
 # the map callback sets the current location source
+#########
 getattr(map_module, 'plot').on_event(
     DoubleTap, getattr(map_module, 'map_callback'))
+
+getattr(map_module, 'current_location_source').on_change('data', update_map)
 
 getattr(map_module, 'lat_input').on_change(
     'value', getattr(map_module, 'update_lat'))
 getattr(map_module, 'lng_input').on_change(
     'value', getattr(map_module, 'update_lng'))
 
-getattr(map_module, 'current_location_source').on_change('data', update_map)
-
 getattr(map_module, 'search_distance_select').on_change('value', update_map)
 
+#########
 # Hydrograph module initialization
-stns = getattr(map_module, 'nearby_stations_source')
-# print('dashboard stations retrieve nearby stations source:')
-# print(dir(stns.selected))
-# print('')
-flow_results = fetch_data(initial_location)
+#########
+stns = getattr(map_module, 'nearby_stations_source').data
+getattr(map_module, 'update_selected_stations')(
+    stns['Station Number'])
+
+selected_stations = getattr(
+    map_module, 'nearby_stations_source').selected['1d'].indices
+
+flow_results = fetch_data([list(stns['Station Number'])[e]
+                           for e in selected_stations])
 blocks['modules.hydrograph'] = getattr(
     hydrograph_module, 'make_plot')(flow_results)
 
+#########
 # Hydrograph Module Callbacks
-getattr(map_module, 'search_distance_select').on_change(
-    'value', update_hydrograph)
+#########
+# getattr(map_module, 'nearby_stations_source').on_change(
+#     'value', update_hydrograph)
 
+
+#########
+# End Module Callbacks
+#########
 
 main_title_div = Div(text="""
 <h2>WSC Data Historical Data Explorer</h2>

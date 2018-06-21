@@ -52,13 +52,16 @@ class Module(BaseModule):
         palette = all_palettes['Spectral'][6]
 
         self.plot = figure(
-            plot_width=1200, plot_height=400, tools=TOOLS,
+            plot_width=1200, plot_height=300, tools=TOOLS,
             toolbar_location=None, x_axis_type="datetime")
 
         self.title = Paragraph(text=TITLE)
 
         for station in list(data_dict.keys())[:1]:
             dataframe = data_dict[station]
+            print('')
+            print('hydrograph module')
+            print(dataframe.head())
 
             station_id = dataframe.columns.values[0].split('DAILY_UR_')[1]
 
@@ -86,6 +89,20 @@ class Module(BaseModule):
 
         return column(self.title, self.plot)
 # [END make_plot]
+
+    def get_concurrent_data(self, df1, df2):
+        df1_id = df1['Station Number'].values[0]
+        df2_id = df2['Station Number'].values[0]
+
+        df1_ur = 'DAILY_UR_{}'.format(df1_id)
+        df2_ur = 'DAILY_UR_{}'.format(df2_id)
+
+        df1.rename(index=str, columns={
+            'DAILY_FLOW': df1_ur, 'FLAG': 'FLAG_{}'.format(df1_id)}, inplace=True)
+        df2.rename(index=str, columns={
+            'DAILY_FLOW': df2_ur, 'FLAG': 'FLAG_{}'.format(df2_id)}, inplace=True)
+
+        return pd.concat([s1_df, s2_df], axis=1, join='inner')
 
     def update_plot(self, dataframe):
         self.source.data.update(dataframe)

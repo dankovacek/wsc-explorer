@@ -141,11 +141,11 @@ def get_stations_by_distance(lat, lon, radius):
 
     target_zone = str(target_loc[-2]) + str(target_loc[-1])
 
-    STATIONS_DF['distance_to_target'] = np.sqrt((STATIONS_DF['utm_E'] - target_loc[0])**2 +
-                                                (STATIONS_DF['utm_N'] - target_loc[1])**2)
+    STATIONS_DF['distance_to_target'] = round(np.sqrt((STATIONS_DF['utm_E'] - target_loc[0])**2 +
+                                                      (STATIONS_DF['utm_N'] - target_loc[1])**2) / 1000, 1)
 
     # enter the distance from the target to search for stations
-    search_radius = radius * 1000
+    search_radius = radius
 
     target_stns = STATIONS_DF[STATIONS_DF['distance_to_target']
                               <= search_radius]

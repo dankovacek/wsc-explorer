@@ -19,7 +19,7 @@ import pandas as pd
 from pymemcache.client.hash import HashClient
 from pyproj import Proj, transform
 
-from get_station_data import get_daily_UR
+from get_station_data import get_daily_UR, get_stations_by_distance
 
 
 class MemcachedDiscovery:
@@ -69,10 +69,7 @@ class MemcachedDiscovery:
 
 
 def _run(query):
-    df_dict = {}
-    for e in query:
-        df_dict[e] = get_daily_UR(e)
-    return df_dict
+    return get_daily_UR(query)
 
 
 def run_query(query, cache_key, expire=3600):
@@ -82,17 +79,17 @@ def run_query(query, cache_key, expire=3600):
     else:
         json = memcached_client.get(cache_key)
         if json is not None:
-            df_dict = json.read(json, orient='records')
+            df = json.read(json, orient='records')
         else:
-            df_dict = _run(query)
-            memcached_client.set(cache_key, json.dumps(df_dict), expire=expire)
-        return df_dict
+            df = _run(query)
+            memcached_client.set(cache_key, json.dumps(df), expire=expire)
+        return df
 
 
 def convert_coords(x1, y1):
     inProj = Proj(init='epsg:3857')
     outProj = Proj(init='epsg:4326')
-    x2, y2 = transform(inProj, outProj, x1, y1)
+    y2, x2 = transform(inProj, outProj, x1, y1)
     return x2, y2
 
 

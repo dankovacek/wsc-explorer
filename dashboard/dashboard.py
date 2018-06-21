@@ -16,6 +16,7 @@ import os
 import time
 
 import pandas as pd
+from bokeh.events import DoubleTap
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.models import (ColumnDataSource, GMapOptions, MultiSelect,
@@ -39,32 +40,31 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Hide some noisy warnings
 logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 
-modules = [modules.hydrograph.Module(), modules.stationmap.Module()]
+map_module = modules.stationmap.Module()
+hydrograph_module = modules.hydrograph.Module()
+modules = [map_module, hydrograph_module]
+
 # [START fetch_data]
 
 
-def fetch_data(station):
+def fetch_data(stations):
     """
-    Fetch data from WSC for the given station by running
-    # the queries for all dashboard modules in parallel.
+    Fetch data from WSC for the given stations by running
+    # the database/web queries in parallel.
     """
     t0 = time.time()
     # Collect fetch methods for all dashboard modules
-    fetch_methods = {module.id: getattr(
-        module, 'fetch_data') for module in modules}
-    # Create a thread pool: one separate thread for each dashboard module
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(fetch_methods)) as executor:
+    # fetch_method = {module.id: getattr(
+    #     module, 'fetch_data') for module in modules}
+
+    # Create a thread pool: one separate thread for each station to be queried
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(stations)) as executor:
         # Prepare the thread tasks
         tasks = {}
-        for key, fetch_method in fetch_methods.items():
-            print('')
-            print('')
-            print('')
-            print(key, fetch_method)
-            print('')
-            print('')
-            task = executor.submit(fetch_method, station)
-            tasks[task] = key
+        for station in stations:
+            task = executor.submit(
+                getattr(hydrograph_module, 'fetch_data'), station)
+            tasks[task] = station
         # Run the tasks and collect results as they arrive
         results = {}
         for task in concurrent.futures.as_completed(tasks):
@@ -77,96 +77,101 @@ def fetch_data(station):
 # [END fetch_data]
 
 
-def make_query_object():
-    return {'lat': lat_input.value,
-            'lng': lng_input.value,
-            'search_distance': search_distance_select.value,
-            'selected_stations': station_select.value}
+def update_map(attrname, old, new):
+    getattr(map_module, 'busy')()
+
+    results = getattr(map_module, 'fetch_data')(
+        float(getattr(map_module, 'search_distance_select').value))
+
+    getattr(map_module, 'update_map')(results)
+    getattr(map_module, 'update_nearby_stations')(results['nearby_stations'])
+    getattr(map_module, 'update_station_selection')(
+        results['nearby_stations']['stations'])
+
+    getattr(map_module, 'unbusy')()
 
 
-def update(attrname, old, new):
-    timer.text = '(Executing %s queries...)' % len(modules)
-    for module in modules:
-        getattr(module, 'busy')()
+def update_hydrograph(attrname, old, new):
+    timer.text = '(Executing {} queries...)'.format('n')
+    getattr(hydrograph_module, 'busy')()
 
-    results = fetch_data(make_query_object())
+    print(new)
 
-    for module in modules:
-        getattr(module, 'update_plot')(results[module.id])
+    results = fetch_flow_data(new)
+    getattr(map_module, 'update_plot')(results)
+    getattr(hydrograph_module, 'update_plot')(results)
 
-    for module in modules:
-        getattr(module, 'unbusy')()
-
-
-def update_station_options():
-    '''
-    When the current project location changes,
-    update the list of neighbouring stations
-    within the specified search distance.
-    '''
-    return get_stations_by_distance(
-        float(lat_input.value), float(lng_input.value),
-        int(search_distance_select.value)).sort_values(by='distance_to_target')
+    getattr(hydrograph_module, 'unbusy')()
 
 
-def station_options_callback(attrname, old, new):
-    update_station_options()
+# def update_lat(attrname, old, new):
+#     if new.isnumeric() and new > -90 and new < 90:
+#         update(attrname, old, new)
+#     else:
+#         lat_input.value = "Enter a value between -90 and 90."
 
 
-def update_lat(attrname, old, new):
-    if new.isnumeric() and new > -90 and new < 90:
-        update(attrname, old, new)
-    else:
-        lat_input.value = "Enter a value between -90 and 90."
-
-
-def update_lng(attrname, old, new):
-    if new.isnumeric() and new > -180 and new < 180:
-        update(attrname, old, new)
-    else:
-        lng_input.value = "Enter a value between -180 and 180."
+# def update_lng(attrname, old, new):
+#     if new.isnumeric() and new > -180 and new < 180:
+#         update(attrname, old, new)
+#     else:
+#         lng_input.value = "Enter a value between -180 and 180."
 
 # UI Start
 
 
-station_options_source = ColumnDataSource(
-    data=dict(stations=[]))
-
-initial_station_id = '08MG005'
-
-current_lat, current_lng = IDS_AND_COORDS[initial_station_id]
-
-lat_input = TextInput(title="Latitude (dec. degrees)",
-                      value=str(current_lat))
-
-lng_input = TextInput(title="Longitude (dec. degrees)",
-                      value=str(current_lng))
-
-lat_input.on_change('value', update_lat)
-lng_input.on_change('value', update_lng)
-
-search_distance_select = Select(title="Set Search Distance [km]",
-                                value='50', options=['50', '100', '150'])
-
-search_distance_select.on_change('value', update)
-
-station_comparison_options = update_station_options()
-
-station_select = MultiSelect(title='Select WSC stations to compare:',
-                             value=[IDS_TO_NAMES[initial_station_id]],
-                             size=10,
-                             options=list(station_options_source.data['stations']))
-
-station_select.on_change('value', station_options_callback)
+# set initial location
+initial_location = ['08KC001']
+current_lat, current_lng = IDS_AND_COORDS[initial_location[0]]
 
 timer = Paragraph()
 
-results = fetch_data(make_query_object())
+# Get initial results based on hard-coded initial location
 
 blocks = {}
-for module in modules:
-    block = getattr(module, 'make_plot')(results[module.id])
-    blocks[module.id] = block
+
+# set initial location
+# this sets the initial location source in the map module
+getattr(map_module, 'update_current_location')(current_lat, current_lng)
+getattr(map_module, 'initialize_coordinate_inputs')(current_lat, current_lng)
+
+map_results = getattr(map_module, 'fetch_data')(
+    float(getattr(map_module, 'search_distance_select').value))
+
+getattr(map_module, 'update_nearby_stations')(map_results['nearby_stations'])
+getattr(map_module, 'update_station_selection')(
+    map_results['nearby_stations']['stations'])
+blocks['modules.stationmap'] = getattr(map_module, 'make_plot')(map_results)
+
+# Callbacks for plot interactions
+
+# Map module callbacks
+# the map callback sets the current location source
+getattr(map_module, 'plot').on_event(
+    DoubleTap, getattr(map_module, 'map_callback'))
+
+getattr(map_module, 'lat_input').on_change(
+    'value', getattr(map_module, 'update_lat'))
+getattr(map_module, 'lng_input').on_change(
+    'value', getattr(map_module, 'update_lng'))
+
+getattr(map_module, 'current_location_source').on_change('data', update_map)
+
+getattr(map_module, 'search_distance_select').on_change('value', update_map)
+
+# Hydrograph module initialization
+stns = getattr(map_module, 'nearby_stations_source')
+# print('dashboard stations retrieve nearby stations source:')
+# print(dir(stns.selected))
+# print('')
+flow_results = fetch_data(initial_location)
+blocks['modules.hydrograph'] = getattr(
+    hydrograph_module, 'make_plot')(flow_results)
+
+# Hydrograph Module Callbacks
+getattr(map_module, 'search_distance_select').on_change(
+    'value', update_hydrograph)
+
 
 main_title_div = Div(text="""
 <h2>WSC Data Historical Data Explorer</h2>
@@ -177,13 +182,12 @@ curdoc().add_root(
     column(
         row(main_title_div, timer),
         # row(selected_station_text),
-        # row(timer),
         row(blocks['modules.stationmap'],
-            column(lat_input, lng_input, search_distance_select, station_select)),
+            ),
         row(blocks['modules.hydrograph'],
             # column(blocks['modules.precipitation'],
             # blocks['modules.population']),
-            )
+            ),
     )
 )
 curdoc().title = "WSC Explorer: A DKHydrotech Application"

@@ -10,10 +10,10 @@ import utm
 
 import sqlite3
 
+from stations import IDS_AND_DAS, STATIONS_DF
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data/')
-
-from stations import IDS_AND_DAS, STATIONS_DF
 
 day_labels = {}
 flag_labels = {}
@@ -37,7 +37,7 @@ def create_connection(db_file):
     return None
 
 
-def get_daily_UR(station, station_da):
+def get_daily_UR(station):
     time0 = time.time()
     # create a database connection
     cols = ['STATION_NUMBER', 'YEAR', 'MONTH', 'NO_DAYS']
@@ -49,7 +49,7 @@ def get_daily_UR(station, station_da):
 
     with conn:
         # print("1. Daily average flow query for station ID {}:".format(station))
-        return select_dly_flows_by_station_ID(conn, station, station_da)
+        return select_dly_flows_by_station_ID(conn, station)
 
     conn.close()
 
@@ -73,6 +73,9 @@ def select_dly_flows_by_station_ID(conn, station):
     :param station: station number (ID) according to WSC convention
     :return: dataframe object of daily flows
     """
+    print('')
+    print(station)
+    print('')
     time0 = time.time()
     cur = conn.cursor()
     cur.execute("SELECT * FROM DLY_FLOWS WHERE STATION_NUMBER=?", (station,))
@@ -106,7 +109,7 @@ def select_dly_flows_by_station_ID(conn, station):
                        value_name='FLAG',
                        var_name='DAY').sort_values(by=['YEAR', 'MONTH'])
 
-    #print('time to melt = ', time.time() - timex)
+    # print('time to melt = ', time.time() - timex)
     df_flows['FLAG'] = df_flags['FLAG']
     # filter out day row if it's not a day that exists in given month
     df_flows = df_flows[df_flows['DAY'].astype(
@@ -129,28 +132,12 @@ def select_dly_flows_by_station_ID(conn, station):
         return None
 
 
-def get_daily_UR(station):
-    time0 = time.time()
-    # create a database connection
-    cols = ['STATION_NUMBER', 'YEAR', 'MONTH', 'NO_DAYS']
-
-    cols += day_labels.keys()
-
-    columns = ['YEAR', 'MONTH', 'NO_DAYS']
-    conn = create_connection('db/Hydat.sqlite3')
-
-    with conn:
-        # print("1. Daily average flow query for station ID {}:".format(station))
-        return select_dly_flows_by_station_ID(conn, station)
-
-    conn.close()
-
-
 def get_stations_by_distance(lat, lon, radius):
     # input target location decimal degrees [lat, lon]
     # (search) radius in km
+    # Returns a dataframe of stations
+
     target_loc = utm.from_latlon(lat, lon)
-    # squamish_utm_loc = utm.from_latlon(49.796, -123.203)
 
     target_zone = str(target_loc[-2]) + str(target_loc[-1])
 
@@ -159,15 +146,17 @@ def get_stations_by_distance(lat, lon, radius):
 
     # enter the distance from the target to search for stations
     search_radius = radius * 1000
+
     target_stns = STATIONS_DF[STATIONS_DF['distance_to_target']
                               <= search_radius]
 
     # filter out results in different utm zones
-    target_stns['UTM_Zone'] = [str(e[-2]) + str(e[-1])
-                               for e in target_stns['utm_latlon']]
+    coords_df = [e for e in target_stns['utm_latlon'].values]
+    target_stns['UTM_Zone'] = [str(e[-2]) + str(e[-1]) for e in coords_df]
 
     try:
-        target_stns = target_stns[target_stns['UTM_Zone'] == target_zone]
+        target_stns = target_stns[target_stns['UTM_Zone'] ==
+                                  target_zone].sort_values(by='distance_to_target')
     except TypeError as e:
         return []
 

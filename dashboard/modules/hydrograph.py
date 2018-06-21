@@ -15,14 +15,18 @@ from bokeh.palettes import all_palettes
 from bokeh.layouts import column
 
 from modules.base import BaseModule
+import modules.stationmap
 
 from utils import run_query
 from stations import IDS_TO_NAMES
 import pandas as pd
+from get_station_data import get_stations_by_distance
 
 
-TITLE = 'Daily Flow Unit Hydrograph [L/s/km²]'
+TITLE = 'Daily Hydrograph: Unit Runoff [L/s/km²]'
 TOOLS = "pan,wheel_zoom,box_select,lasso_select,reset,box_zoom"
+
+map_module = modules.stationmap.Module()
 
 
 class Module(BaseModule):
@@ -32,57 +36,58 @@ class Module(BaseModule):
         self.source = None
         self.plot = None
         self.title = None
+        self.selected_stations = 'tricked you!'
 
-    def fetch_data(self, input_vars):
-        # create a tag based on lat-lng rounded to 0.1 such that the search doesn't
-        # get repeated uneccessarily for repeat clicks within roughly a 10km radius
-        lat_lng_tag = 'lat' + \
-            str(round(float(input_vars['lat']), 1)) + 'lng' + \
-            str(round(float(input_vars['lng']), 1))
-        print('lat lng tag:')
-        print(lat_lng_tag)
-        print('')
+    def fetch_data(self, station):
         return run_query(
-            input_vars['selected_stations'],
-            cache_key=('hydrograph-%s' % lat_lng_tag))
+            station,
+            cache_key=('hydrograph-%s' % station)
+        )
 
 # [START make_plot]
-    def make_plot(self, dataframe):
+    def make_plot(self, data_dict):
 
-        dataframe['tooltip_date'] = [x.strftime(
-            "%Y-%m-%d") for x in dataframe.index]
-        self.source = ColumnDataSource(data=dataframe)
-        palette = all_palettes['Set2'][6]
-        UR_heading = [
-            e for e in dataframe.columns.values if 'DAILY_UR' in e][0]
-        station_id = dataframe.columns.values[0].split('DAILY_UR_')[1]
+        columns = {}
 
-        hover_tool = HoverTool(tooltips=[
-            ("Date", "@tooltip_date"),
-            ("Unit Runoff", "@{}".format(UR_heading)),
-        ])
+        palette = all_palettes['Spectral'][6]
+
         self.plot = figure(
             plot_width=1200, plot_height=400, tools=TOOLS,
             toolbar_location=None, x_axis_type="datetime")
-        self.plot.add_tools(hover_tool)
-        columns = {
-            '{}'.format(UR_heading): '{}'.format(station_id),
-        }
-        for i, (code, label) in enumerate(columns.items()):
-            self.plot.line(
-                x='DATE', y=code, source=self.source, line_width=3,
-                line_alpha=0.6, line_color=palette[i], legend=label)
 
         self.title = Paragraph(text=TITLE)
+
+        for station in list(data_dict.keys())[:1]:
+            dataframe = data_dict[station]
+
+            station_id = dataframe.columns.values[0].split('DAILY_UR_')[1]
+
+            self.source = ColumnDataSource(data=dataframe)
+
+            dataframe['tooltip_date'] = [x.strftime(
+                "%Y-%m-%d") for x in dataframe.index]
+
+            UR_heading = [
+                e for e in dataframe.columns.values if 'DAILY_UR' in e][0]
+
+            hover_tool = HoverTool(tooltips=[
+                ("Date", "@tooltip_date"),
+                ("Unit Runoff", "@{}".format(UR_heading)),
+            ])
+
+            self.plot.add_tools(hover_tool)
+
+            columns['{}'.format(UR_heading)] = '{}'.format(station_id)
+
+            for i, (code, label) in enumerate(columns.items()):
+                self.plot.line(
+                    x='DATE', y=code, source=self.source, line_width=3,
+                    line_alpha=0.6, line_color=palette[i], legend=label)
+
         return column(self.title, self.plot)
 # [END make_plot]
 
     def update_plot(self, dataframe):
-        print('')
-        print('')
-        print(dataframe.head())
-        print('')
-        print('')
         self.source.data.update(dataframe)
 
     def busy(self):

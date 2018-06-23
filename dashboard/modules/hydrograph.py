@@ -49,7 +49,7 @@ class Module(BaseModule):
 
 # [START make_plot]
     def make_plot(self, dataframe):
-        palette = all_palettes['Spectral'][6]
+        palette = all_palettes['Spectral'][11]
 
         self.plot = figure(name='hydrograph',
                            plot_width=1200, plot_height=300, tools=TOOLS,
@@ -78,6 +78,7 @@ class Module(BaseModule):
 
         hover_tool = HoverTool(tooltips=tooltips)
         self.plot.add_tools(hover_tool)
+        self.plot.legend.click_policy = "hide"
 
         return column(self.title, self.plot)
 

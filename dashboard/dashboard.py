@@ -105,7 +105,6 @@ def update_hydrograph(attrname, old, new):
     getattr(hydrograph_module, 'unbusy')(timer.text)
 
 
-
 #############
 # UI Start
 # set initial location
@@ -179,7 +178,7 @@ main_title_div = Div(text="""
 """, width=800, height=30)
 
 layout = column(
-    row(main_title_div, timer),
+    row(main_title_div),
     # row(selected_station_text),
     row(blocks['modules.stationmap'],
         ),

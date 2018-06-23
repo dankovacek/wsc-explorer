@@ -39,7 +39,7 @@ from get_station_data import get_stations_by_distance
 
 
 TITLE = 'Target Location'
-TOOLS = "pan,wheel_zoom,box_select,lasso_select,reset,box_zoom"
+TOOLS = "pan,wheel_zoom,box_select,reset,box_zoom"
 
 
 class Module(BaseModule):
@@ -65,6 +65,7 @@ class Module(BaseModule):
             TableColumn(field='distance_to_target',
                         title="Distance from Target [km]"),
             TableColumn(field='Gross Drainage Area (km2)', title='DA [km²]'),
+            TableColumn(field='Regulation', title='Regulation'),
             TableColumn(field='Year From', title="Year From"),
             TableColumn(field='Year To', title="Year To"),
             TableColumn(field='Status', title="Status"),
@@ -119,7 +120,7 @@ class Module(BaseModule):
             lat=data['current_location_coords']['lat'],
             lng=data['current_location_coords']['lng'],
             map_type="hybrid",
-            zoom=9
+            zoom=8
         )
 
         BASE_DIR = os.path.dirname(os.path.dirname(
@@ -130,6 +131,7 @@ class Module(BaseModule):
 
         self.plot = gmap(google_api_key=GOOGLE_API_KEY['api_key'], name='map',
                          map_options=map_options, width=900, height=400,
+                         tools=TOOLS,
                          title="Figure 1: Project Location and Regional Station Map")
 
         self.plot.circle(x="Longitude", y="Latitude", size=15,
@@ -168,8 +170,8 @@ class Module(BaseModule):
     def update_lat(self, attrname, old, new):
         try:
             if float(new) >= -90 and float(new) <= 90:
-                self.current_location_source.data = {
-                    'lat': [float(new)], 'lng': [float(self.lng_input.value)]}
+                self.update_current_location(
+                    float(new), float(self.lng_input.value))
                 self.plot.map_options.lat = float(new)
                 self.set_location_error_message("")
         except ValueError:
@@ -179,8 +181,8 @@ class Module(BaseModule):
     def update_lng(self, attrname, old, new):
         try:
             if float(new) >= -180 and float(new) <= 180:
-                self.current_location_source.data = {
-                    'lat': [float(self.lat_input.value)], 'lng': [float(new)]}
+                self.update_current_location(
+                    float(self.lat_input.value), float(new))
                 self.plot.map_options.lng = float(new)
                 self.set_location_error_message("")
         except ValueError:
@@ -189,6 +191,7 @@ class Module(BaseModule):
 
     def update_current_location(self, lat, lng):
         self.current_location_source.data = {'lat': [lat], 'lng': [lng]}
+        self.nearby_stations_source.selected['1d'].indices = []
 
     def initialize_coordinate_inputs(self, lat, lng):
         self.lat_input.value = str(round(lat, 3))

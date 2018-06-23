@@ -83,14 +83,11 @@ class Module(BaseModule):
         return column(self.title, self.plot)
 
 # [END make_plot]
-    def update_plot(self, dataframe):
-        rootLayout = curdoc()
-
     def get_all_data(self, data_dict):
         return pd.concat([data_dict[e] for e in data_dict], axis=1, join='outer')
 
     def busy(self):
-        self.title.text = 'Updating...'
+        self.title.text = '<p style="color:red;">Updating...</p>'
         self.plot.background_fill_color = "#efefef"
 
     def unbusy(self, timer_text):

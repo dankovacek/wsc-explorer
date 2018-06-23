@@ -96,13 +96,20 @@ def update_hydrograph(attrname, old, new):
     stns = list(getattr(
         map_module, 'nearby_stations_source').data['Station Number'])
 
-    results = fetch_data([stns[e] for e in new.indices])
-    # in order to add a series to a plot, we need to replace the child
-    # containing the hydrograph in the layout object
-    layout.children[2] = row(getattr(
-        hydrograph_module, 'make_plot')(results))
+    if len(new.indices) > 10:
+        getattr(hydrograph_module, 'unbusy')(
+            '<p style="color:red;">Select a maximum of 10 stations.</p>')
+        getattr(map_module, 'set_location_error_message')(
+            'Select a maximum of 10 stations.')
+    else:
+        getattr(map_module, 'set_location_error_message')('')
+        results = fetch_data([stns[e] for e in new.indices])
+        # in order to add a series to a plot, we need to replace the child
+        # containing the hydrograph in the layout object
+        layout.children[2] = row(getattr(
+            hydrograph_module, 'make_plot')(results))
 
-    getattr(hydrograph_module, 'unbusy')(timer.text)
+        getattr(hydrograph_module, 'unbusy')(timer.text)
 
 
 #############
@@ -110,7 +117,7 @@ def update_hydrograph(attrname, old, new):
 # set initial location
 initial_location = ['08KC001']
 current_lat, current_lng = IDS_AND_COORDS[initial_location[0]]
-timer = Paragraph()
+timer = Div()
 blocks = {}
 
 #########

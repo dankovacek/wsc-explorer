@@ -39,7 +39,7 @@ from get_station_data import get_stations_by_distance
 
 
 TITLE = 'Target Location'
-TOOLS = "pan,wheel_zoom,box_select,reset,box_zoom"
+TOOLS = "pan,wheel_zoom,box_select,reset"
 
 
 class Module(BaseModule):

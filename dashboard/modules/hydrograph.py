@@ -13,6 +13,13 @@ from bokeh.models import ColumnDataSource, HoverTool, Paragraph
 from bokeh.plotting import figure
 from bokeh.palettes import all_palettes
 from bokeh.layouts import column
+from bokeh.models.widgets import (Div,
+                                  PreText,
+                                  TextInput,
+                                  DataTable,
+                                  TableColumn,
+                                  DateFormatter
+                                  )
 
 from modules.base import BaseModule
 import modules.stationmap
@@ -22,21 +29,17 @@ from stations import IDS_TO_NAMES
 import pandas as pd
 from get_station_data import get_stations_by_distance
 
-
-TITLE = 'Daily Hydrograph: Unit Runoff [L/s/km²]'
+TITLE = 'Unit Area Hydrograph'
 TOOLS = "pan,wheel_zoom,box_select,lasso_select,reset,box_zoom"
-
-map_module = modules.stationmap.Module()
 
 
 class Module(BaseModule):
 
     def __init__(self):
         super().__init__()
-        self.source = None
+        self.source = ColumnDataSource(data={})
         self.plot = None
-        self.title = None
-        self.selected_stations = 'tricked you!'
+        self.title = Div(text='')
 
     def fetch_data(self, station):
         return run_query(
@@ -45,72 +48,50 @@ class Module(BaseModule):
         )
 
 # [START make_plot]
-    def make_plot(self, data_dict):
-
-        columns = {}
-
+    def make_plot(self, dataframe):
         palette = all_palettes['Spectral'][6]
 
-        self.plot = figure(
-            plot_width=1200, plot_height=300, tools=TOOLS,
-            toolbar_location=None, x_axis_type="datetime")
+        self.plot = figure(name='hydrograph',
+                           plot_width=1200, plot_height=300, tools=TOOLS,
+                           toolbar_location='right', x_axis_type="datetime",
+                           title='Figure 2: Concurrent Hydrograph of Daily Unit Runoff [L/s/km²]')
 
-        self.title = Paragraph(text=TITLE)
+        UR_headings = [e for e in dataframe.columns.values if 'DAILY_UR' in e]
 
-        for station in list(data_dict.keys())[:1]:
-            dataframe = data_dict[station]
-            print('')
-            print('hydrograph module')
-            print(dataframe.head())
+        dataframe['tooltip_date'] = [x.strftime(
+            "%Y-%m-%d") for x in dataframe.index]
 
-            station_id = dataframe.columns.values[0].split('DAILY_UR_')[1]
+        dataframe.reset_index(inplace=True)
 
-            self.source = ColumnDataSource(data=dataframe)
+        self.source.data = self.source.from_df(dataframe)
 
-            dataframe['tooltip_date'] = [x.strftime(
-                "%Y-%m-%d") for x in dataframe.index]
+        tooltips = [("Date", "@tooltip_date")]
 
-            UR_heading = [
-                e for e in dataframe.columns.values if 'DAILY_UR' in e][0]
+        for i, label in enumerate(UR_headings):
 
-            hover_tool = HoverTool(tooltips=[
-                ("Date", "@tooltip_date"),
-                ("Unit Runoff", "@{}".format(UR_heading)),
-            ])
+            tooltips.append(
+                ("{}".format(label), "@{} [L/s/km²]".format(label, label)))
 
-            self.plot.add_tools(hover_tool)
+            self.plot.line(
+                x='DATE', y=label, source=self.source, line_width=2,
+                line_alpha=0.6, line_color=palette[i], legend="{}".format(IDS_TO_NAMES[label[9:]]))
 
-            columns['{}'.format(UR_heading)] = '{}'.format(station_id)
-
-            for i, (code, label) in enumerate(columns.items()):
-                self.plot.line(
-                    x='DATE', y=code, source=self.source, line_width=3,
-                    line_alpha=0.6, line_color=palette[i], legend=label)
+        hover_tool = HoverTool(tooltips=tooltips)
+        self.plot.add_tools(hover_tool)
 
         return column(self.title, self.plot)
+
 # [END make_plot]
-
-    def get_concurrent_data(self, df1, df2):
-        df1_id = df1['Station Number'].values[0]
-        df2_id = df2['Station Number'].values[0]
-
-        df1_ur = 'DAILY_UR_{}'.format(df1_id)
-        df2_ur = 'DAILY_UR_{}'.format(df2_id)
-
-        df1.rename(index=str, columns={
-            'DAILY_FLOW': df1_ur, 'FLAG': 'FLAG_{}'.format(df1_id)}, inplace=True)
-        df2.rename(index=str, columns={
-            'DAILY_FLOW': df2_ur, 'FLAG': 'FLAG_{}'.format(df2_id)}, inplace=True)
-
-        return pd.concat([s1_df, s2_df], axis=1, join='inner')
-
     def update_plot(self, dataframe):
-        self.source.data.update(dataframe)
+        rootLayout = curdoc()
+
+    def get_all_data(self, data_dict):
+        return pd.concat([data_dict[e] for e in data_dict], axis=1, join='outer')
 
     def busy(self):
         self.title.text = 'Updating...'
         self.plot.background_fill_color = "#efefef"
 
-    def unbusy(self):
-        self.title.text = TITLE
+    def unbusy(self, timer_text):
+        self.title.text = timer_text
         self.plot.background_fill_color = "white"

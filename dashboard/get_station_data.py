@@ -73,9 +73,6 @@ def select_dly_flows_by_station_ID(conn, station):
     :param station: station number (ID) according to WSC convention
     :return: dataframe object of daily flows
     """
-    print('')
-    print(station)
-    print('')
     time0 = time.time()
     cur = conn.cursor()
     cur.execute("SELECT * FROM DLY_FLOWS WHERE STATION_NUMBER=?", (station,))

@@ -72,8 +72,9 @@ def fetch_data(stations):
             results[key] = task.result()
     # Return results once all tasks have been completed
     t1 = time.time()
-    timer.text = '(Execution time: %s seconds)' % round(t1 - t0, 4)
-    return results
+    timer.text = '(Executed queries in %s seconds)' % round(t1 - t0, 2)
+
+    return getattr(hydrograph_module, 'get_all_data')(results)
 # [END fetch_data]
 
 
@@ -83,24 +84,26 @@ def update_map(attrname, old, new):
     results = getattr(map_module, 'fetch_data')(
         float(getattr(map_module, 'search_distance_select').value))
 
-    getattr(map_module, 'update_map')(results)
     getattr(map_module, 'update_nearby_stations')(results['nearby_stations'])
-
-    getattr(map_module, 'update_selected_stations')(
-        results['nearby_stations']['Station Number'].values)
 
     getattr(map_module, 'unbusy')()
 
 
 def update_hydrograph(attrname, old, new):
-    timer.text = '(Executing {} queries...)'.format('n')
+    timer.text = '(Executing queries...)'
     getattr(hydrograph_module, 'busy')()
 
-    results = fetch_flow_data(new)
-    getattr(map_module, 'update_plot')(results)
-    getattr(hydrograph_module, 'update_plot')(results)
+    stns = list(getattr(
+        map_module, 'nearby_stations_source').data['Station Number'])
 
-    getattr(hydrograph_module, 'unbusy')()
+    results = fetch_data([stns[e] for e in new.indices])
+    # in order to add a series to a plot, we need to replace the child
+    # containing the hydrograph in the layout object
+    layout.children[2] = row(getattr(
+        hydrograph_module, 'make_plot')(results))
+
+    getattr(hydrograph_module, 'unbusy')(timer.text)
+
 
 
 #############
@@ -122,7 +125,9 @@ getattr(map_module, 'initialize_coordinate_inputs')(current_lat, current_lng)
 map_results = getattr(map_module, 'fetch_data')(
     float(getattr(map_module, 'search_distance_select').value))
 
+
 getattr(map_module, 'update_nearby_stations')(map_results['nearby_stations'])
+
 blocks['modules.stationmap'] = getattr(map_module, 'make_plot')(map_results)
 
 ##########
@@ -132,12 +137,12 @@ blocks['modules.stationmap'] = getattr(map_module, 'make_plot')(map_results)
 getattr(map_module, 'plot').on_event(
     DoubleTap, getattr(map_module, 'map_callback'))
 
-getattr(map_module, 'current_location_source').on_change('data', update_map)
-
 getattr(map_module, 'lat_input').on_change(
     'value', getattr(map_module, 'update_lat'))
 getattr(map_module, 'lng_input').on_change(
     'value', getattr(map_module, 'update_lng'))
+
+getattr(map_module, 'current_location_source').on_change('data', update_map)
 
 getattr(map_module, 'search_distance_select').on_change('value', update_map)
 
@@ -145,7 +150,8 @@ getattr(map_module, 'search_distance_select').on_change('value', update_map)
 # Hydrograph module initialization
 #########
 stns = getattr(map_module, 'nearby_stations_source').data
-getattr(map_module, 'update_selected_stations')(
+
+getattr(map_module, 'initialize_selected_stations')(
     stns['Station Number'])
 
 selected_stations = getattr(
@@ -153,14 +159,15 @@ selected_stations = getattr(
 
 flow_results = fetch_data([list(stns['Station Number'])[e]
                            for e in selected_stations])
+
 blocks['modules.hydrograph'] = getattr(
     hydrograph_module, 'make_plot')(flow_results)
 
 #########
 # Hydrograph Module Callbacks
 #########
-# getattr(map_module, 'nearby_stations_source').on_change(
-#     'value', update_hydrograph)
+getattr(map_module, 'nearby_stations_source').on_change(
+    'selected', update_hydrograph)
 
 
 #########
@@ -171,17 +178,16 @@ main_title_div = Div(text="""
 <h2>WSC Data Historical Data Explorer</h2>
 """, width=800, height=30)
 
-
-curdoc().add_root(
-    column(
-        row(main_title_div, timer),
-        # row(selected_station_text),
-        row(blocks['modules.stationmap'],
-            ),
-        row(blocks['modules.hydrograph'],
-            # column(blocks['modules.precipitation'],
-            # blocks['modules.population']),
-            ),
-    )
+layout = column(
+    row(main_title_div, timer),
+    # row(selected_station_text),
+    row(blocks['modules.stationmap'],
+        ),
+    row(blocks['modules.hydrograph'],
+        # column(blocks['modules.precipitation'],
+        # blocks['modules.population']),
+        ),
 )
+
+curdoc().add_root(layout)
 curdoc().title = "WSC Explorer: A DKHydrotech Application"

@@ -49,7 +49,8 @@ class Module(BaseModule):
         self.current_location_source = ColumnDataSource(data=dict())
         self.nearby_stations_source = ColumnDataSource(data=dict())
         self.plot = None
-        self.title = None
+        self.title = Div(text="")
+        self.coordinate_input_warning = Div(text="", width=300, height=15)
         # additional UI features
 
         self.lat_input = TextInput(title="Latitude (dec. degrees)",
@@ -127,8 +128,9 @@ class Module(BaseModule):
         with open(os.path.join(BASE_DIR, 'api_key/client_secret_548109306400.json')) as f:
             GOOGLE_API_KEY = json.load(f)
 
-        self.plot = gmap(google_api_key=GOOGLE_API_KEY['api_key'],
-                         map_options=map_options, width=900, height=400)
+        self.plot = gmap(google_api_key=GOOGLE_API_KEY['api_key'], name='map',
+                         map_options=map_options, width=900, height=400,
+                         title="Figure 1: Project Location and Regional Station Map")
 
         self.plot.circle(x="Longitude", y="Latitude", size=15,
                          fill_color="blue", fill_alpha=0.8,
@@ -144,14 +146,13 @@ class Module(BaseModule):
                                     source=self.current_location_source,
                                     legend='Target Location')
 
-        self.title = Div(text="", width=500)
-
-        self.station_select_warning = PreText(text="")
+        # self.title = Div(text="", width=500)
 
         return column(row(self.plot,
                           column(self.search_parameter_text,
                                  self.lat_input,
                                  self.lng_input,
+                                 self.coordinate_input_warning,
                                  self.search_distance_select,
                                  )
                           ),
@@ -160,33 +161,45 @@ class Module(BaseModule):
                       )
 # [END make_plot]
 
+    def set_location_error_message(self, message):
+        self.coordinate_input_warning.text = "<p style='color:red;'>{}</p>".format(
+            message)
+
     def update_lat(self, attrname, old, new):
-        if new.isnumeric() and new > -90 and new < 90:
-            self.current_location_source.data = {
-                'lat': [new], 'lng': [self.lng_input.value]}
-        else:
-            self.lat_input.value = "Enter a value between -90 and 90."
+        try:
+            if float(new) >= -90 and float(new) <= 90:
+                self.current_location_source.data = {
+                    'lat': [float(new)], 'lng': [float(self.lng_input.value)]}
+                self.plot.map_options.lat = float(new)
+                self.set_location_error_message("")
+        except ValueError:
+            self.set_location_error_message(
+                'Latitude must be between -90 and 90.')
 
     def update_lng(self, attrname, old, new):
-        if new.isnumeric() and new > -180 and new < 180:
-            self.current_location_source.data = {
-                'lat': [self.lat_input.value], 'lng': [new]}
-        else:
-            self.lng_input.value = "Enter a value between -180 and 180."
+        try:
+            if float(new) >= -180 and float(new) <= 180:
+                self.current_location_source.data = {
+                    'lat': [float(self.lat_input.value)], 'lng': [float(new)]}
+                self.plot.map_options.lng = float(new)
+                self.set_location_error_message("")
+        except ValueError:
+            self.set_location_error_message(
+                "Longitude must be between -180 and 180.")
 
     def update_current_location(self, lat, lng):
-        print(lat, lng)
-        print('######')
         self.current_location_source.data = {'lat': [lat], 'lng': [lng]}
 
     def initialize_coordinate_inputs(self, lat, lng):
         self.lat_input.value = str(round(lat, 3))
         self.lng_input.value = str(round(lng, 3))
 
-    def update_selected_stations(self, stations):
+    def initialize_selected_stations(self, stations):
         if len(stations) >= 2:
-            print('selecting first two stations')
             self.nearby_stations_source.selected['1d'].indices = [0, 1]
+
+    # def update_selected_stations(self, stations):
+    #     self.nearby_stations_source.selected['1d'].indices = [0, 1]
 
     def update_nearby_stations(self, data):
         self.nearby_stations_source.data.update(data)
@@ -194,9 +207,6 @@ class Module(BaseModule):
     def map_callback(self, event):
         x, y = convert_coords(event.x, event.y)
         self.update_current_location(x, y)
-
-    def update_map(self, data):
-        self.nearby_stations_source.data.update(data['nearby_stations'])
 
     def busy(self):
         self.title.text = 'Updating...'

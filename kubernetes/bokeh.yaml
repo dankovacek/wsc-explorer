@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
       - name: bokeh
-        image: gcr.io/cloud-solutions-images/dashboard-demo@sha256:b692c07b13ccefe7127763cfbff2eb9d0e1c5749cec53b166baca320232ea160
+        image: gcr.io/wsc-explorer/bokeh:v0.0.19
         ports:
         - containerPort: 5006
         env:
@@ -45,12 +45,10 @@ spec:
 
 ---
 
-apiVersion: v1
-kind: Service
-metadata:
+apiVersion: v0.0.28
   labels:
     run: bokeh
-  name: bokeh
+    name: bokeh
 spec:
   ports:
   - port: 80

@@ -7,6 +7,7 @@ import time
 import re
 from datetime import date
 import utm
+import logging
 
 import sqlite3
 
@@ -14,6 +15,7 @@ from stations import IDS_AND_DAS, STATIONS_DF
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data/')
+DB_DIR = os.path.join(os.path.dirname(BASE_DIR), 'db')
 
 day_labels = {}
 flag_labels = {}
@@ -32,7 +34,8 @@ def create_connection(db_file):
         conn = sqlite3.connect(db_file)
         return conn
     except sqlite3.Error as e:
-        print(e)
+       logging.warn('Sqlite3 connection Error: {}'.format(e))
+       print(e)
 
     return None
 
@@ -45,10 +48,10 @@ def get_daily_UR(station):
     cols += day_labels.keys()
 
     columns = ['YEAR', 'MONTH', 'NO_DAYS']
-    conn = create_connection('db/Hydat.sqlite3')
+    conn = create_connection(os.path.join(DB_DIR, 'Hydat.sqlite3'))
 
     with conn:
-        # print("1. Daily average flow query for station ID {}:".format(station))
+        logging.warn("1. Daily average flow query for station ID {}:".format(station))
         return select_dly_flows_by_station_ID(conn, station)
 
     conn.close()

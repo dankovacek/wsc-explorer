@@ -124,9 +124,10 @@ class Module(BaseModule):
         )
 
         BASE_DIR = os.path.dirname(os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__))))
+            os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))))
 
-        with open(os.path.join(BASE_DIR, 'api_key/client_secret_548109306400.json')) as f:
+        with open('dashboard/api_key/client_secret_548109306400.json') as f:
             GOOGLE_API_KEY = json.load(f)
 
         self.plot = gmap(google_api_key=GOOGLE_API_KEY['api_key'], name='map',

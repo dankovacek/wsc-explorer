@@ -38,7 +38,7 @@ from stations import IDS_AND_COORDS, IDS_TO_NAMES, NAMES_TO_IDS
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Hide some noisy warnings
-logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
+logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.WARNING)
 
 map_module = modules.stationmap.Module()
 hydrograph_module = modules.hydrograph.Module()

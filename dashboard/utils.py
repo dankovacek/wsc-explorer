@@ -14,6 +14,7 @@ import json
 import os
 import socket
 from datetime import datetime
+import logging
 
 import pandas as pd
 from pymemcache.client.hash import HashClient
@@ -72,18 +73,20 @@ def _run(query):
     return get_daily_UR(query)
 
 
-def run_query(query, cache_key, expire=3600):
-    memcached_client = memcached_discovery.get_client()
-    if memcached_client is None:
-        return _run(query)
-    else:
-        json = memcached_client.get(cache_key)
-        if json is not None:
-            df = json.read(json, orient='records')
-        else:
-            df = _run(query)
-            memcached_client.set(cache_key, json.dumps(df), expire=expire)
-        return df
+def run_query(query, cache_key, expire=3600, dialect='legacy'):
+    return _run(query)
+    #memcached_client = memcached_discovery.get_client()
+    #if memcached_client is None:
+    #    return _run(query)
+    #else:
+    #    json = memcached_client.get(cache_key)
+    #    logging.warning('what is memcached_client cache key json? = ', json)
+    #    if json is not None:
+    #        df = pd.read_json(json, orient='records')
+    #    else:
+    #        df = _run(query)
+    #        memcached_client.set(cache_key, df.to_json(orient='records'), expire=expire)
+    #    return df
 
 
 def convert_coords(x1, y1):

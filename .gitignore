@@ -2,3 +2,5 @@ service-account-key.json
 env/
 db/
 api_key/
+.dockerignore
+vscodeworkspaceconfig.code-workspace

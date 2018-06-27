@@ -8,6 +8,8 @@ Contents of this repository:
 * `kubernetes`: Configuration files to deploy the application using [Kubernetes](https://kubernetes.io/).
 
 ## Updating app (just the bokeh service)
+#### make sure PROJECT_ID is exported
+`export PROJECT_ID="$(gcloud config get-value project -q)"`
 
 #### Build new docker image (for bokeh service)
 `docker build -t gcr.io/${PROJECT_ID}/bokeh:v[version-number] .`
@@ -16,7 +18,16 @@ Contents of this repository:
 `gcloud docker -- push gcr.io/${PROJECT_ID}/bokeh:v[version-number]`
 
 #### Set image
-`kubectl set image deployment/bokeh bokeh=gcr.io/${PROJECT_ID}/bokeh:v2`
+`kubectl set image deployment/bokeh bokeh=gcr.io/${PROJECT_ID}/bokeh:v[version-number]`
 
 ### when your image invariably fails:
 `kubectl logs [pod id]`
+
+#check path
+
+#### Add user
+
+`gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --role roles/iap.httpsResourceAccessor \
+  --member user:[EMAIL]
+`

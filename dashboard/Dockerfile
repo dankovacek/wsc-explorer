@@ -13,9 +13,12 @@ FROM python:3.6.1
 
 WORKDIR /usr/src/app
 
-COPY . .
+COPY requirements.txt /tmp/requirements.txt
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r /tmp/requirements.txt
+
+COPY api_key/ ./api_key
+COPY dashboard/ ./dashboard
 
 EXPOSE 5006
 

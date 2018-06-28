@@ -83,10 +83,6 @@ def update_map_and_tables(attrname, old, new):
     getattr(map_module, 'busy')()
     # update the source for the map station points
     getattr(map_module, 'find_nearest_wsc_stations')()
-    # update the station summary table
-    # getattr(wsc_module, 'update_found_wsc_stations')(
-    #     getattr(map_module, 'found_wsc_stations_source').data)
-
     getattr(map_module, 'unbusy')()
 
 
@@ -97,25 +93,26 @@ def update_wsc_module(attrname, old, new):
     # avoid cluttering the UI by limiting simultaneous
     # queries to ten
     if len(new.indices) > 10:
-        getattr(map_module, 'unbusy')(
-            '<p style="color:red;">Select a maximum of 10 stations.</p>')
+        getattr(map_module, 'unbusy')()
         getattr(map_module, 'set_location_error_message')(
             'Select a maximum of 10 stations.')
     else:
-        stns = list(getattr(
-            wsc_module, 'found_wsc_stations_source').data['Station Number'])
         getattr(map_module, 'set_location_error_message')('')
+        # retrieve the flow series corresponding to the selected stations
+        flow_series = wsc_data_query(
+            getattr(map_module, 'get_selected_stations_by_id')())
 
-        getattr(map_module, 'update_selected_wsc_stations')(new.indices)
-        getattr(wsc_module, 'update_selected_wsc_stations')(new.indices)
+        # if no stations are returned, don't update the graph but post a warning:
+        if len(flow_series) == 0:
+            getattr(map_module, 'set_location_error_message')(
+                'Select one or more stations to compare')
+        else:
+            # in order to add a series to a plot, we need to replace the child
+            # containing the hydrograph in the layout object
+            layout.children[2] = row(getattr(
+                wsc_module, 'make_plot_and_table')(flow_series))
 
-        results = wsc_data_query([stns[e] for e in new.indices])
-        # in order to add a series to a plot, we need to replace the child
-        # containing the hydrograph in the layout object
-        layout.children[2] = row(getattr(
-            wsc_module, 'make_plot_and_table')(results))
-
-        getattr(wsc_module, 'unbusy')(timer.text)
+            getattr(wsc_module, 'unbusy')(timer.text)
 
 
 #############
@@ -135,12 +132,14 @@ getattr(map_module, 'update_current_location')(current_lat, current_lng)
 getattr(map_module, 'update_coordinate_inputs')()
 # set the data source for plotted station locations
 getattr(map_module, 'find_nearest_wsc_stations')()
+
 # instantiate the map and associated UI elements
 blocks['modules.mapModule'] = getattr(map_module, 'make_plot')()
 
 ##########
 # Map module callbacks triggering wide updates.
 ##########
+# refresh nearest stations when search distance dropdown value changes
 getattr(map_module, 'search_distance_select').on_change(
     'value', update_map_and_tables)
 
@@ -157,17 +156,16 @@ getattr(map_module, 'found_wsc_stations_source').on_change(
 #########
 # WSC Table and Hydrograph module initialization
 #########
-getattr(wsc_module, 'update_found_wsc_stations')(
-    getattr(map_module, 'found_wsc_stations_source').data)
-stns = getattr(wsc_module, 'found_wsc_stations_source')
 # intially select closest two stations as an example
-getattr(wsc_module, 'initialize_selected_wsc_stations')(
-    stns.data['Station Number'])
+getattr(map_module, 'initialize_selected_wsc_stations')()
+
 # get indices for which stations are selected and retrieve
 # flow series for selected stations
-selected_stations = stns.selected['1d'].indices
-flow_results = wsc_data_query([list(stns.data['Station Number'])[e]
-                               for e in selected_stations])
+selected_stations = getattr(
+    map_module, 'get_selected_stations_by_id')()
+
+flow_results = wsc_data_query(selected_stations)
+
 # instantiate the wsc table and related UI elements
 blocks['modules.wscModule'] = getattr(
     wsc_module, 'make_plot_and_table')(flow_results)
@@ -175,8 +173,6 @@ blocks['modules.wscModule'] = getattr(
 #########
 # Hydrograph Module Callbacks
 #########
-getattr(wsc_module, 'found_wsc_stations_source').on_change(
-    'selected', update_wsc_module)
 
 
 #########

@@ -169,6 +169,6 @@ def get_stations_by_distance(lat, lon, radius):
     search_radius = radius
 
     target_stns = STATIONS_DF[STATIONS_DF['distance_to_target']
-                              <= search_radius]
+                              <= search_radius].sort_values('distance_to_target')
 
     return target_stns

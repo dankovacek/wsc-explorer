@@ -71,29 +71,31 @@ class Module(BaseModule):
         the distance specified in the `Set Search Distance` dropdown. </p>
         """, width=300, height=80)
 
-    def update_lat(self, attrname, old, new):
-        try:
-            if float(new) >= -90 and float(new) <= 90:
-                self.update_current_location(
-                    float(new), float(self.lng_input.value))
-                if self.plot is not None:
-                    self.plot.map_options.lat = float(new)
-                self.set_location_error_message("")
-        except ValueError:
-            self.set_location_error_message(
-                'Latitude must be between -90 and 90.')
+        columns = [
+            TableColumn(field='Station Number', title="Station Number"),
+            TableColumn(field='Station Name', title="Station Name"),
+            TableColumn(field='distance_to_target',
+                        title="Distance from Target [km]"),
+            TableColumn(field='Gross Drainage Area (km2)', title='DA [km²]'),
+            TableColumn(field='Regulation', title='Regulation'),
+            TableColumn(field='Year From', title="Year From"),
+            TableColumn(field='Year To', title="Year To"),
+            TableColumn(field='Status', title="Status"),
+        ]
 
-    def update_lng(self, attrname, old, new):
-        try:
-            if float(new) >= -180 and float(new) <= 180:
-                self.update_current_location(
-                    float(self.lat_input.value), float(new))
-                if self.plot is not None:
-                    self.plot.map_options.lng = float(new)
-                self.set_location_error_message("")
-        except ValueError:
-            self.set_location_error_message(
-                "Longitude must be between -180 and 180.")
+        self.station_summary_table = DataTable(
+            source=self.found_wsc_stations_source,
+            columns=columns,
+            fit_columns=True,
+            sortable=True,
+            selectable=True,
+            width=1200,
+            height=200)
+
+        self.station_summary_text = Div(text="""
+        <p>2. From the station summary table below (Table 1), select the stations you want to run the analysis on. </p>
+        <p><strong>Table 1: Regional WSC Station Summary</strong></p>
+        """, width=800, height=30)
 
     def find_nearest_wsc_stations(self):
         # Based on the current map location (red dot)
@@ -160,6 +162,8 @@ class Module(BaseModule):
                                  self.search_distance_select,
                                  )
                           ),
+                      self.station_summary_text,
+                      self.station_summary_table,
                       )
 # [END make_plot]
 
@@ -170,6 +174,9 @@ class Module(BaseModule):
     def update_current_location(self, lat, lng):
         self.current_location_source.data = {'lat': [lat], 'lng': [lng]}
 
+    def update_found_wsc_stations(self, data):
+        self.found_wsc_stations_source.data.update(data)
+
     def update_selected_wsc_stations(self, indices):
         self.found_wsc_stations_source.selected['1d'].indices = indices
 
@@ -177,13 +184,45 @@ class Module(BaseModule):
         self.lat_input.value = str(self.current_location_source.data['lat'][0])
         self.lng_input.value = str(self.current_location_source.data['lng'][0])
 
-    def update_found_wsc_stations(self, data):
-        self.found_wsc_stations_source.data.update(data)
-
     def map_callback(self, event):
         x, y = convert_coords(event.x, event.y)
         self.update_current_location(x, y)
         # clear selections
+
+    def initialize_selected_wsc_stations(self):
+        # set initial selected stations as an example
+        # since i've set a location I know has numerous results, this
+        # the 'selected' attribute should always return more than two results
+        self.found_wsc_stations_source.selected['1d'].indices = [0, 1]
+
+    def get_selected_stations_by_id(self):
+        indices = self.found_wsc_stations_source.selected['1d'].indices
+        stations = list(self.found_wsc_stations_source.data['Station Number'])
+        return [stations[e] for e in indices]
+
+    def update_lat(self, attrname, old, new):
+        try:
+            if float(new) >= -90 and float(new) <= 90:
+                self.update_current_location(
+                    float(new), float(self.lng_input.value))
+                if self.plot is not None:
+                    self.plot.map_options.lat = float(new)
+                self.set_location_error_message("")
+        except ValueError:
+            self.set_location_error_message(
+                'Latitude must be between -90 and 90.')
+
+    def update_lng(self, attrname, old, new):
+        try:
+            if float(new) >= -180 and float(new) <= 180:
+                self.update_current_location(
+                    float(self.lat_input.value), float(new))
+                if self.plot is not None:
+                    self.plot.map_options.lng = float(new)
+                self.set_location_error_message("")
+        except ValueError:
+            self.set_location_error_message(
+                "Longitude must be between -180 and 180.")
 
     def busy(self):
         self.plot.title.text = 'Updating...'

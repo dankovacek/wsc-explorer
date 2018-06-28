@@ -28,7 +28,7 @@ from stations import IDS_TO_NAMES
 import pandas as pd
 from get_station_data import get_stations_by_distance
 
-TITLE = 'Unit Area Hydrograph'
+TITLE = 'Unit Area Daily Hydrograph'
 TOOLS = "pan,wheel_zoom,box_select,lasso_select,reset,box_zoom"
 
 
@@ -40,32 +40,6 @@ class Module(BaseModule):
         self.found_wsc_stations_source = ColumnDataSource(data=dict())
         self.plot = None
         self.title = Div(text='')
-
-        columns = [
-            TableColumn(field='Station Number', title="Station Number"),
-            TableColumn(field='Station Name', title="Station Name"),
-            TableColumn(field='distance_to_target',
-                        title="Distance from Target [km]"),
-            TableColumn(field='Gross Drainage Area (km2)', title='DA [km²]'),
-            TableColumn(field='Regulation', title='Regulation'),
-            TableColumn(field='Year From', title="Year From"),
-            TableColumn(field='Year To', title="Year To"),
-            TableColumn(field='Status', title="Status"),
-        ]
-
-        self.station_summary_table = DataTable(
-            source=self.found_wsc_stations_source,
-            columns=columns,
-            fit_columns=True,
-            sortable=True,
-            selectable=True,
-            width=1200,
-            height=200)
-
-        self.station_summary_text = Div(text="""
-        <p>2. From the station summary table below (Table 1), select the stations you want to run the analysis on. </p>
-        <p><strong>Table 1: Regional WSC Station Summary</strong></p>
-        """, width=800, height=30)
 
     def fetch_wsc_data(self, station):
         return run_query(
@@ -80,7 +54,7 @@ class Module(BaseModule):
         self.plot = figure(name='hydrograph',
                            plot_width=1200, plot_height=300, tools=TOOLS,
                            toolbar_location='right', x_axis_type="datetime",
-                           title='Figure 2: Concurrent Hydrograph of Daily Unit Runoff [L/s/km²]')
+                           title='Figure 2: Hydrograph of Daily Unit Runoff [L/s/km²]')
 
         UR_headings = [e for e in dataframe.columns.values if 'DAILY_UR' in e]
 
@@ -106,21 +80,11 @@ class Module(BaseModule):
         self.plot.add_tools(hover_tool)
         self.plot.legend.click_policy = "hide"
 
-        return column(self.station_summary_text, self.station_summary_table, self.title, self.plot)
+        return column(self.title, self.plot)
 
 # [END make_plot]
     def get_all_data(self, data_dict):
         return pd.concat([data_dict[e] for e in data_dict], axis=1, join='outer')
-
-    def initialize_selected_wsc_stations(self, stations):
-        # set initial selected stations as an example
-        self.found_wsc_stations_source.selected['1d'].indices = [0, 1]
-
-    def update_selected_wsc_stations(self, indices):
-        self.found_wsc_stations_source.selected['1d'].indices = indices
-
-    def update_found_wsc_stations(self, data):
-        self.found_wsc_stations_source.data.update(data)
 
     def busy(self):
         self.title.text = '<p style="color:red;">Updating...</p>'

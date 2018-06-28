@@ -31,3 +31,11 @@ Contents of this repository:
   --role roles/iap.httpsResourceAccessor \
   --member user:[EMAIL]
 `
+# TODO:
+
+1.  Separate out tables into separate modules.
+2.  Integrate MSC data queries (integrate options for parameters?  temp, precip, etc.)
+3.  Implement frequency Analysis based on selection (or implement generalized approach, i.e. k-fold cross-validation?)
+4.  Frequency analysis results comparison based on inclusion / exclusion of flagged data (incl. metrics).  
+        -i.e. on a large scale, how does inclusion/exclusion of flagged data affect results?
+5.  Anomaly detection based on comparison of stage/flow and regional precip/temperature data.  icing?

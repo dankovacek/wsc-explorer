@@ -38,7 +38,7 @@ from utils import convert_coords
 from get_station_data import get_stations_by_distance
 
 
-TITLE = 'Target Location'
+TITLE = "Figure 1: Project Location and Regional Station Map"
 TOOLS = "pan,wheel_zoom,box_select,reset"
 
 
@@ -47,7 +47,7 @@ class Module(BaseModule):
     def __init__(self):
         super().__init__()
         self.current_location_source = ColumnDataSource(data=dict())
-        self.nearby_stations_source = ColumnDataSource(data=dict())
+        self.found_wsc_stations_source = ColumnDataSource(data=dict())
         self.plot = None
         self.title = Div(text="")
         self.coordinate_input_warning = Div(text="", width=300, height=15)
@@ -59,26 +59,9 @@ class Module(BaseModule):
         self.lng_input = TextInput(title="Longitude (dec. degrees)",
                                    value='')
 
-        columns = [
-            TableColumn(field='Station Number', title="Station Number"),
-            TableColumn(field='Station Name', title="Station Name"),
-            TableColumn(field='distance_to_target',
-                        title="Distance from Target [km]"),
-            TableColumn(field='Gross Drainage Area (km2)', title='DA [km²]'),
-            TableColumn(field='Regulation', title='Regulation'),
-            TableColumn(field='Year From', title="Year From"),
-            TableColumn(field='Year To', title="Year To"),
-            TableColumn(field='Status', title="Status"),
-        ]
-
-        self.station_summary_table = DataTable(
-            source=self.nearby_stations_source,
-            columns=columns,
-            fit_columns=True,
-            sortable=True,
-            selectable=True,
-            width=1200,
-            height=200)
+        # Callbacks
+        self.lat_input.on_change('value', self.update_lat)
+        self.lng_input.on_change('value', self.update_lng)
 
         self.search_distance_select = Select(title="Set Search Distance [km]",
                                              value='50', options=['50', '100', '150'])
@@ -88,37 +71,55 @@ class Module(BaseModule):
         the distance specified in the `Set Search Distance` dropdown. </p>
         """, width=300, height=80)
 
-        self.station_summary_text = Div(text="""
-        <p>2. From the station summary table below (Table 1), select the stations you want to run the analysis on. </p>
-        <p><strong>Table 1: Regional WSC Station Summary</strong></p>
-        """, width=800, height=30)
+    def update_lat(self, attrname, old, new):
+        try:
+            if float(new) >= -90 and float(new) <= 90:
+                self.update_current_location(
+                    float(new), float(self.lng_input.value))
+                if self.plot is not None:
+                    self.plot.map_options.lat = float(new)
+                self.set_location_error_message("")
+        except ValueError:
+            self.set_location_error_message(
+                'Latitude must be between -90 and 90.')
 
-    def fetch_data(self, search_distance):
+    def update_lng(self, attrname, old, new):
+        try:
+            if float(new) >= -180 and float(new) <= 180:
+                self.update_current_location(
+                    float(self.lat_input.value), float(new))
+                if self.plot is not None:
+                    self.plot.map_options.lng = float(new)
+                self.set_location_error_message("")
+        except ValueError:
+            self.set_location_error_message(
+                "Longitude must be between -180 and 180.")
+
+    def find_nearest_wsc_stations(self):
         # Based on the current map location (red dot)
         # find all WSC stations within the specified
         # search distance (dropdown)
         lat = self.current_location_source.data['lat'][0]
         lng = self.current_location_source.data['lng'][0]
-        stations_df = get_stations_by_distance(lat, lng, search_distance)
+        stations_df = get_stations_by_distance(
+            lat, lng, float(self.search_distance_select.value))
 
-        results = {'nearby_stations': stations_df,
-                   'current_location_coords': {'lat': lat, 'lng': lng}
-                   }
-
-        return results
+        self.update_found_wsc_stations(stations_df)
 
         # [START make_plot]
 
-    def make_plot(self, data):
+    def make_plot(self):
         hover_tool = HoverTool(tooltips=[
             ("Station", "@target_station"),
         ])
 
-        dataframe = data['nearby_stations']
+        dataframe = self.found_wsc_stations_source.data
+
+        current_loc = self.current_location_source.data
 
         map_options = GMapOptions(
-            lat=data['current_location_coords']['lat'],
-            lng=data['current_location_coords']['lng'],
+            lat=current_loc['lat'][0],
+            lng=current_loc['lng'][0],
             map_type="hybrid",
             zoom=8
         )
@@ -133,11 +134,11 @@ class Module(BaseModule):
         self.plot = gmap(google_api_key=GOOGLE_API_KEY['api_key'], name='map',
                          map_options=map_options, width=900, height=400,
                          tools=TOOLS,
-                         title="Figure 1: Project Location and Regional Station Map")
+                         title=TITLE)
 
         self.plot.circle(x="Longitude", y="Latitude", size=15,
                          fill_color="blue", fill_alpha=0.8,
-                         source=self.nearby_stations_source,
+                         source=self.found_wsc_stations_source,
                          # set visual properties for selected glyphs
                          selection_color="orange",
                          nonselection_fill_alpha=0.6,
@@ -149,7 +150,7 @@ class Module(BaseModule):
                                     source=self.current_location_source,
                                     legend='Target Location')
 
-        # self.title = Div(text="", width=500)
+        self.plot.on_event(DoubleTap, self.map_callback)
 
         return column(row(self.plot,
                           column(self.search_parameter_text,
@@ -159,8 +160,6 @@ class Module(BaseModule):
                                  self.search_distance_select,
                                  )
                           ),
-                      row(self.station_summary_text),
-                      row(self.station_summary_table)
                       )
 # [END make_plot]
 
@@ -168,54 +167,28 @@ class Module(BaseModule):
         self.coordinate_input_warning.text = "<p style='color:red;'>{}</p>".format(
             message)
 
-    def update_lat(self, attrname, old, new):
-        try:
-            if float(new) >= -90 and float(new) <= 90:
-                self.update_current_location(
-                    float(new), float(self.lng_input.value))
-                self.plot.map_options.lat = float(new)
-                self.set_location_error_message("")
-        except ValueError:
-            self.set_location_error_message(
-                'Latitude must be between -90 and 90.')
-
-    def update_lng(self, attrname, old, new):
-        try:
-            if float(new) >= -180 and float(new) <= 180:
-                self.update_current_location(
-                    float(self.lat_input.value), float(new))
-                self.plot.map_options.lng = float(new)
-                self.set_location_error_message("")
-        except ValueError:
-            self.set_location_error_message(
-                "Longitude must be between -180 and 180.")
-
     def update_current_location(self, lat, lng):
         self.current_location_source.data = {'lat': [lat], 'lng': [lng]}
-        self.nearby_stations_source.selected['1d'].indices = []
 
-    def initialize_coordinate_inputs(self, lat, lng):
-        self.lat_input.value = str(round(lat, 3))
-        self.lng_input.value = str(round(lng, 3))
+    def update_selected_wsc_stations(self, indices):
+        self.found_wsc_stations_source.selected['1d'].indices = indices
 
-    def initialize_selected_stations(self, stations):
-        if len(stations) >= 2:
-            self.nearby_stations_source.selected['1d'].indices = [0, 1]
+    def update_coordinate_inputs(self):
+        self.lat_input.value = str(self.current_location_source.data['lat'][0])
+        self.lng_input.value = str(self.current_location_source.data['lng'][0])
 
-    # def update_selected_stations(self, stations):
-    #     self.nearby_stations_source.selected['1d'].indices = [0, 1]
-
-    def update_nearby_stations(self, data):
-        self.nearby_stations_source.data.update(data)
+    def update_found_wsc_stations(self, data):
+        self.found_wsc_stations_source.data.update(data)
 
     def map_callback(self, event):
         x, y = convert_coords(event.x, event.y)
         self.update_current_location(x, y)
+        # clear selections
 
     def busy(self):
-        self.title.text = 'Updating...'
+        self.plot.title.text = 'Updating...'
         self.plot.background_fill_color = "#efefef"
 
     def unbusy(self):
-        self.title.text = TITLE
+        self.plot.title.text = TITLE
         self.plot.background_fill_color = "white"

@@ -10,6 +10,7 @@ import utm
 import logging
 
 import sqlite3
+import scipy.spatial
 
 from stations import IDS_AND_DAS, STATIONS_DF
 
@@ -34,8 +35,8 @@ def create_connection(db_file):
         conn = sqlite3.connect(db_file)
         return conn
     except sqlite3.Error as e:
-       logging.warn('Sqlite3 connection Error: {}'.format(e))
-       print(e)
+        logging.warn('Sqlite3 connection Error: {}'.format(e))
+        print(e)
 
     return None
 
@@ -51,7 +52,6 @@ def get_daily_UR(station):
     conn = create_connection(os.path.join(DB_DIR, 'Hydat.sqlite3'))
 
     with conn:
-        logging.warn("1. Daily average flow query for station ID {}:".format(station))
         return select_dly_flows_by_station_ID(conn, station)
 
     conn.close()
@@ -132,32 +132,43 @@ def select_dly_flows_by_station_ID(conn, station):
         return None
 
 
+def deg2rad(degree):
+    rad = degree * 2 * np.pi / 360
+    return rad
+
+
+def get_xyz_distance(lat, lon, target):
+    """
+    Converts lat/lon to x, y, z.
+    Does not account for elevation of target location.
+    Just assumes stations are at same elevation
+    """
+    r = 6378137 + target.Elevation
+    x = r * np.cos(deg2rad(lat)) * np.cos(deg2rad(lon))
+    y = r * np.cos(deg2rad(lat)) * np.sin(deg2rad(lon))
+    z = r * np.sin(deg2rad(lat)) * (1 - 1 / 298.257223563)
+
+    return scipy.spatial.distance.euclidean(target.xyz_coords, [x, y, z])
+
+
 def get_stations_by_distance(lat, lon, radius):
     # input target location decimal degrees [lat, lon]
     # (search) radius in km
-    # Returns a dataframe of stations
+    # Returns a dataframe of stations sorted by closest to the
+    # current location
 
-    target_loc = utm.from_latlon(lat, lon)
+    dist = [get_xyz_distance(lat, lon, station[1])
+            for station in STATIONS_DF.iterrows()]
 
-    target_zone = str(target_loc[-2]) + str(target_loc[-1])
+    # STATIONS_DF['distance_to_target'] = round(np.sqrt((STATIONS_DF['utm_E'] - target_loc[0])**2 +
+    #                                                   (STATIONS_DF['utm_N'] - target_loc[1])**2) / 1000, 1)
 
-    STATIONS_DF['distance_to_target'] = round(np.sqrt((STATIONS_DF['utm_E'] - target_loc[0])**2 +
-                                                      (STATIONS_DF['utm_N'] - target_loc[1])**2) / 1000, 1)
+    STATIONS_DF['distance_to_target'] = [round(e / 1000, 1) for e in dist]
 
     # enter the distance from the target to search for stations
     search_radius = radius
 
     target_stns = STATIONS_DF[STATIONS_DF['distance_to_target']
                               <= search_radius]
-
-    # filter out results in different utm zones
-    coords_df = [e for e in target_stns['utm_latlon'].values]
-    target_stns['UTM_Zone'] = [str(e[-2]) + str(e[-1]) for e in coords_df]
-
-    try:
-        target_stns = target_stns[target_stns['UTM_Zone'] ==
-                                  target_zone].sort_values(by='distance_to_target')
-    except TypeError as e:
-        return []
 
     return target_stns

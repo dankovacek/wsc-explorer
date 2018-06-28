@@ -12,9 +12,21 @@ import os
 
 import pandas as pd
 import utm
+import numpy as np
+
+
+def deg2rad(degree):
+    rad = degree * 2 * np.pi / 360
+    return(rad)
 
 
 def convert_coords(data):
+    """
+    Takes in the dataframe of all WSC stations
+    and converts lat/lon/elevation to xyz for
+    more accurate distance measurements between 
+    stations.
+    """
     data['Latitude'].dropna(inplace=True)
     data['Longitude'].dropna(inplace=True)
 
@@ -32,6 +44,21 @@ def convert_coords(data):
 
     data['utm_E'] = [e[0] for e in data['utm_latlon']]
     data['utm_N'] = [e[1] for e in data['utm_latlon']]
+
+    xyz = pd.DataFrame()
+    xyz['r'] = 6378137 + data['Elevation']
+
+    xyz['x'] = xyz['r'] * \
+        np.cos(data['Latitude'].apply(deg2rad)) * \
+        np.cos(data['Longitude'].apply(deg2rad))
+    xyz['y'] = xyz['r'] * \
+        np.cos(data['Latitude'].apply(deg2rad)) * \
+        np.sin(data['Longitude'].apply(deg2rad))
+    xyz['z'] = xyz['r'] * \
+        np.sin(data['Latitude'].apply(deg2rad)) * (1 - 1 / 298.257223563)
+
+    data['xyz_coords'] = xyz[['x', 'y', 'z']].values.tolist()
+
     return data
 
 
@@ -42,19 +69,18 @@ stations_df = pd.read_csv(DATA_DIR + 'WSC_Stations_Master.csv')
 
 stations_df.dropna(axis=0, subset=['Gross Drainage Area (km2)'], inplace=True)
 
-stations_df = convert_coords(stations_df)
+STATIONS_DF = convert_coords(stations_df)
 
 STATIONS = [tuple(x)
-            for x in stations_df[['Station Number', 'Station Name']].values]
+            for x in STATIONS_DF[['Station Number', 'Station Name']].values]
 COORDS = [tuple(x)
-          for x in stations_df[['Station Number', 'Latitude', 'Longitude']].values]
+          for x in STATIONS_DF[['Station Number', 'Latitude', 'Longitude']].values]
 
 # da_subset = stations_df[['Station Number', 'Gross Drainage Area (km2)']]
-DRAINAGE_AREAS = [tuple(x) for x in stations_df[[
+DRAINAGE_AREAS = [tuple(x) for x in STATIONS_DF[[
     'Station Number', 'Gross Drainage Area (km2)']].values]
 
 IDS_TO_NAMES = {k: '{}: {}'.format(k, v) for (k, v) in STATIONS}
 NAMES_TO_IDS = {v: k for (k, v) in STATIONS}
 IDS_AND_DAS = {k: v for (k, v) in DRAINAGE_AREAS}
 IDS_AND_COORDS = {k: (lat, lon) for (k, lat, lon) in COORDS}
-STATIONS_DF = stations_df

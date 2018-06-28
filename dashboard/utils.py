@@ -75,10 +75,10 @@ def _run(query):
 
 def run_query(query, cache_key, expire=3600, dialect='legacy'):
     return _run(query)
-    #memcached_client = memcached_discovery.get_client()
-    #if memcached_client is None:
+    # memcached_client = memcached_discovery.get_client()
+    # if memcached_client is None:
     #    return _run(query)
-    #else:
+    # else:
     #    json = memcached_client.get(cache_key)
     #    logging.warning('what is memcached_client cache key json? = ', json)
     #    if json is not None:

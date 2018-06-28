@@ -25,8 +25,8 @@ from bokeh.models.formatters import DatetimeTickFormatter
 from bokeh.models.widgets import Div, Button, PreText, TextInput
 from bokeh.plotting import gmap
 
-import modules.hydrograph
-import modules.stationmap
+import modules.wscModule
+import modules.mapModule
 # import modules.precipitation
 # import modules.temperature
 
@@ -40,14 +40,15 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Hide some noisy warnings
 logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.WARNING)
 
-map_module = modules.stationmap.Module()
-hydrograph_module = modules.hydrograph.Module()
-modules = [map_module, hydrograph_module]
+map_module = modules.mapModule.Module()
+wsc_module = modules.wscModule.Module()
+# wsc_table_module = modules.WSC_Table.Module()
+modules = [map_module, wsc_module]
 
 # [START fetch_data]
 
 
-def fetch_data(stations):
+def wsc_data_query(stations):
     """
     Fetch data from WSC for the given stations by running
     # the database/web queries in parallel.
@@ -63,7 +64,7 @@ def fetch_data(stations):
         tasks = {}
         for station in stations:
             task = executor.submit(
-                getattr(hydrograph_module, 'fetch_data'), station)
+                getattr(wsc_module, 'fetch_wsc_data'), station)
             tasks[task] = station
         # Run the tasks and collect results as they arrive
         results = {}
@@ -74,42 +75,47 @@ def fetch_data(stations):
     t1 = time.time()
     timer.text = '(Executed queries in %s seconds)' % round(t1 - t0, 2)
 
-    return getattr(hydrograph_module, 'get_all_data')(results)
+    return getattr(wsc_module, 'get_all_data')(results)
 # [END fetch_data]
 
 
-def update_map(attrname, old, new):
+def update_map_and_tables(attrname, old, new):
     getattr(map_module, 'busy')()
-
-    results = getattr(map_module, 'fetch_data')(
-        float(getattr(map_module, 'search_distance_select').value))
-
-    getattr(map_module, 'update_nearby_stations')(results['nearby_stations'])
+    # update the source for the map station points
+    getattr(map_module, 'find_nearest_wsc_stations')()
+    # update the station summary table
+    # getattr(wsc_module, 'update_found_wsc_stations')(
+    #     getattr(map_module, 'found_wsc_stations_source').data)
 
     getattr(map_module, 'unbusy')()
 
 
-def update_hydrograph(attrname, old, new):
+def update_wsc_module(attrname, old, new):
     timer.text = '(Executing queries...)'
-    getattr(hydrograph_module, 'busy')()
+    getattr(wsc_module, 'busy')()
 
-    stns = list(getattr(
-        map_module, 'nearby_stations_source').data['Station Number'])
-
+    # avoid cluttering the UI by limiting simultaneous
+    # queries to ten
     if len(new.indices) > 10:
-        getattr(hydrograph_module, 'unbusy')(
+        getattr(map_module, 'unbusy')(
             '<p style="color:red;">Select a maximum of 10 stations.</p>')
         getattr(map_module, 'set_location_error_message')(
             'Select a maximum of 10 stations.')
     else:
+        stns = list(getattr(
+            wsc_module, 'found_wsc_stations_source').data['Station Number'])
         getattr(map_module, 'set_location_error_message')('')
-        results = fetch_data([stns[e] for e in new.indices])
+
+        getattr(map_module, 'update_selected_wsc_stations')(new.indices)
+        getattr(wsc_module, 'update_selected_wsc_stations')(new.indices)
+
+        results = wsc_data_query([stns[e] for e in new.indices])
         # in order to add a series to a plot, we need to replace the child
         # containing the hydrograph in the layout object
         layout.children[2] = row(getattr(
-            hydrograph_module, 'make_plot')(results))
+            wsc_module, 'make_plot_and_table')(results))
 
-        getattr(hydrograph_module, 'unbusy')(timer.text)
+        getattr(wsc_module, 'unbusy')(timer.text)
 
 
 #############
@@ -121,59 +127,56 @@ timer = Div()
 blocks = {}
 
 #########
-# Initialization and Callbacks for plot interactions
+# Map Initialization
 #########
-# set initial location
-# this sets the initial location source in the map module
+# set the initial location source in the map module
 getattr(map_module, 'update_current_location')(current_lat, current_lng)
-getattr(map_module, 'initialize_coordinate_inputs')(current_lat, current_lng)
-
-map_results = getattr(map_module, 'fetch_data')(
-    float(getattr(map_module, 'search_distance_select').value))
-
-
-getattr(map_module, 'update_nearby_stations')(map_results['nearby_stations'])
-
-blocks['modules.stationmap'] = getattr(map_module, 'make_plot')(map_results)
+# initialize the lat/lon input values with current location
+getattr(map_module, 'update_coordinate_inputs')()
+# set the data source for plotted station locations
+getattr(map_module, 'find_nearest_wsc_stations')()
+# instantiate the map and associated UI elements
+blocks['modules.mapModule'] = getattr(map_module, 'make_plot')()
 
 ##########
-# Map module callbacks
-# the map callback sets the current location source
+# Map module callbacks triggering wide updates.
+##########
+getattr(map_module, 'search_distance_select').on_change(
+    'value', update_map_and_tables)
+
+# if the current location changes, trigger an update to the map function,
+# refresh station search, refresh wsc station table and msc station table
+getattr(map_module, 'current_location_source').on_change(
+    'data', update_map_and_tables)
+
+# have to have a separate callback to update the table source and the map source
+# based on the different selection sources
+getattr(map_module, 'found_wsc_stations_source').on_change(
+    'selected', update_wsc_module)
+
 #########
-getattr(map_module, 'plot').on_event(
-    DoubleTap, getattr(map_module, 'map_callback'))
-
-getattr(map_module, 'lat_input').on_change(
-    'value', getattr(map_module, 'update_lat'))
-getattr(map_module, 'lng_input').on_change(
-    'value', getattr(map_module, 'update_lng'))
-
-getattr(map_module, 'current_location_source').on_change('data', update_map)
-
-getattr(map_module, 'search_distance_select').on_change('value', update_map)
-
+# WSC Table and Hydrograph module initialization
 #########
-# Hydrograph module initialization
-#########
-stns = getattr(map_module, 'nearby_stations_source').data
-
-getattr(map_module, 'initialize_selected_stations')(
-    stns['Station Number'])
-
-selected_stations = getattr(
-    map_module, 'nearby_stations_source').selected['1d'].indices
-
-flow_results = fetch_data([list(stns['Station Number'])[e]
-                           for e in selected_stations])
-
-blocks['modules.hydrograph'] = getattr(
-    hydrograph_module, 'make_plot')(flow_results)
+getattr(wsc_module, 'update_found_wsc_stations')(
+    getattr(map_module, 'found_wsc_stations_source').data)
+stns = getattr(wsc_module, 'found_wsc_stations_source')
+# intially select closest two stations as an example
+getattr(wsc_module, 'initialize_selected_wsc_stations')(
+    stns.data['Station Number'])
+# get indices for which stations are selected and retrieve
+# flow series for selected stations
+selected_stations = stns.selected['1d'].indices
+flow_results = wsc_data_query([list(stns.data['Station Number'])[e]
+                               for e in selected_stations])
+# instantiate the wsc table and related UI elements
+blocks['modules.wscModule'] = getattr(
+    wsc_module, 'make_plot_and_table')(flow_results)
 
 #########
 # Hydrograph Module Callbacks
 #########
-getattr(map_module, 'nearby_stations_source').on_change(
-    'selected', update_hydrograph)
+getattr(wsc_module, 'found_wsc_stations_source').on_change(
+    'selected', update_wsc_module)
 
 
 #########
@@ -187,11 +190,9 @@ main_title_div = Div(text="""
 layout = column(
     row(main_title_div),
     # row(selected_station_text),
-    row(blocks['modules.stationmap'],
+    row(blocks['modules.mapModule'],
         ),
-    row(blocks['modules.hydrograph'],
-        # column(blocks['modules.precipitation'],
-        # blocks['modules.population']),
+    row(blocks['modules.wscModule'],
         ),
 )
 
